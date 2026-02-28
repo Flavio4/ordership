@@ -1,6 +1,7 @@
 package com.rtz.ordership.dto.response;
 
 import com.rtz.ordership.entity.Product;
+import com.rtz.ordership.entity.enums.Currency;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,6 +14,7 @@ public record ProductResponse(
         BigDecimal purchasePrice,
         BigDecimal salePrice,
         String unit,
+        Currency currency,
         Boolean active,
         Instant createdAt) {
     public static ProductResponse fromEntity(Product product) {
@@ -23,6 +25,7 @@ public record ProductResponse(
                 product.getPurchasePrice(),
                 product.getSalePrice(),
                 product.getUnit(),
+                product.getCurrency(),
                 product.getActive(),
                 product.getCreatedAt());
     }

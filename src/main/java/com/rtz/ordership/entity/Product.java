@@ -1,5 +1,6 @@
 package com.rtz.ordership.entity;
 
+import com.rtz.ordership.entity.enums.Currency;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,6 +34,10 @@ public class Product {
 
     @Column(nullable = false)
     private String unit;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Currency currency;
 
     @Builder.Default
     @Column(nullable = false)

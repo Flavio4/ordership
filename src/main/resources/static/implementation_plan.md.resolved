@@ -173,7 +173,7 @@ Asignación de pedidos a repartidores por zona, tracking de estado.
 - Enum: `ADMIN`, `OPERATOR`, `DELIVERY`
 
 #### [NEW] [UserRepository.java](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/repository/UserRepository.java)
-- JPA Repository con `findByEmail()`
+- JPA Repository con [findByEmail()](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/repository/UserRepository.java#13-14)
 
 #### [NEW] [UserService.java](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/service/UserService.java)
 - Lógica de negocio para CRUD de usuarios
@@ -201,7 +201,7 @@ Asignación de pedidos a repartidores por zona, tracking de estado.
 - `DELETE /api/users/{id}` — Desactivar usuario (soft delete)
 
 #### [NEW] DTOs de request/response
-- `LoginRequest`, `LoginResponse`, `RegisterRequest`, `UserResponse`, `UserUpdateRequest`
+- [LoginRequest](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/dto/request/LoginRequest.java#6-11), [LoginResponse](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/dto/response/LoginResponse.java#3-11), [RegisterRequest](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/dto/request/RegisterRequest.java#6-17), [UserResponse](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/dto/response/UserResponse.java#9-28), [UserUpdateRequest](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/dto/request/UserUpdateRequest.java#5-11)
 
 #### [NEW] [GlobalExceptionHandler.java](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/exception/GlobalExceptionHandler.java)
 - Manejo centralizado de excepciones con `@ControllerAdvice`
@@ -210,18 +210,41 @@ Asignación de pedidos a repartidores por zona, tracking de estado.
 
 ### Fase 2 — Products + Zones
 
-#### Entidades
-- `Product.java`, `Zone.java`
+#### [NEW] `Zone.java` — Entidad
+- [id](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/security/JwtProvider.java#13-60) (UUID), `name` (unique), `description`, `active`, `createdAt`
 
-#### Repositories
-- `ProductRepository.java`, `ZoneRepository.java`
+#### [NEW] `Product.java` — Entidad
+- [id](file:///d:/Proyectos/Backend/ordership/src/main/java/com/rtz/ordership/security/JwtProvider.java#13-60) (UUID), `name`, `description`, `purchasePrice`, `salePrice`, `unit` ("bidón", "pack"), `active`, `createdAt`
 
-#### Services
-- `ProductService.java`, `ZoneService.java`
+#### [NEW] DTOs
+- `ZoneRequest` (name, description)
+- `ZoneResponse` (id, name, description, active, createdAt)
+- `ProductRequest` (name, description, purchasePrice, salePrice, unit)
+- `ProductResponse` (id, name, description, purchasePrice, salePrice, unit, active, createdAt)
 
-#### Controllers
-- `ProductController.java` → CRUD completo bajo `/api/products`
-- `ZoneController.java` → CRUD completo bajo `/api/zones`
+#### Endpoints `/api/zones` (ADMIN, OPERATOR)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/zones` | Listar zonas activas |
+| GET | `/api/zones/{id}` | Obtener zona |
+| POST | `/api/zones` | Crear zona |
+| PUT | `/api/zones/{id}` | Actualizar zona |
+| DELETE | `/api/zones/{id}` | Desactivar zona |
+
+#### Endpoints `/api/products` (ADMIN, OPERATOR)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/products` | Listar productos activos |
+| GET | `/api/products/{id}` | Obtener producto |
+| POST | `/api/products` | Crear producto |
+| PUT | `/api/products/{id}` | Actualizar producto |
+| DELETE | `/api/products/{id}` | Desactivar producto |
+
+#### Archivos (14 nuevos)
+- `Zone.java`, `ZoneRepository.java`, `ZoneService.java`, `ZoneController.java`
+- `Product.java`, `ProductRepository.java`, `ProductService.java`, `ProductController.java`
+- `ZoneRequest.java`, `ZoneResponse.java`, `ProductRequest.java`, `ProductResponse.java`
+- `ProductUpdateRequest.java`, `ZoneUpdateRequest.java`
 
 ---
 

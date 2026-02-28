@@ -54,6 +54,7 @@ public class ProductService {
                 .purchasePrice(request.purchasePrice())
                 .salePrice(request.salePrice())
                 .unit(request.unit())
+                .currency(request.currency())
                 .active(true)
                 .build();
 
@@ -83,6 +84,8 @@ public class ProductService {
             product.setSalePrice(request.salePrice());
         if (request.unit() != null)
             product.setUnit(request.unit());
+        if (request.currency() != null)
+            product.setCurrency(request.currency());
         if (request.active() != null)
             product.setActive(request.active());
 
