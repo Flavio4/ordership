@@ -9,10 +9,12 @@ import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.UnauthorizedException;
 import com.rtz.ordership.repository.UserRepository;
 import com.rtz.ordership.security.JwtProvider;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class AuthService {
 
@@ -29,24 +31,35 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
+        log.info("Intento de login para email: {}", request.email());
+
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new UnauthorizedException("Credenciales inválidas"));
+                .orElseThrow(() -> {
+                    log.warn("Login fallido - email no encontrado: {}", request.email());
+                    return new UnauthorizedException("Credenciales inválidas");
+                });
 
         if (!user.getActive()) {
+            log.warn("Login fallido - cuenta desactivada: {}", request.email());
             throw new UnauthorizedException("La cuenta está desactivada");
         }
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            log.warn("Login fallido - contraseña incorrecta para: {}", request.email());
             throw new UnauthorizedException("Credenciales inválidas");
         }
 
         String token = jwtProvider.generateToken(user.getEmail(), user.getRole().name());
+        log.info("Login exitoso para: {} [rol: {}]", user.getEmail(), user.getRole());
         return new LoginResponse(token, UserResponse.fromEntity(user));
     }
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        log.info("Registro de nuevo usuario - email: {}, rol: {}", request.email(), request.role());
+
         if (userRepository.existsByEmail(request.email())) {
+            log.warn("Registro fallido - email duplicado: {}", request.email());
             throw new DuplicateResourceException("Ya existe un usuario con el email: " + request.email());
         }
 
@@ -60,6 +73,7 @@ public class AuthService {
                 .build();
 
         user = userRepository.save(user);
+        log.info("Usuario registrado exitosamente - id: {}, email: {}", user.getId(), user.getEmail());
         return UserResponse.fromEntity(user);
     }
 }
