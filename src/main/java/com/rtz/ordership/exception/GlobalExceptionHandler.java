@@ -1,13 +1,18 @@
 package com.rtz.ordership.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.rtz.ordership.dto.response.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -38,6 +43,37 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), message));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        String message = "El cuerpo de la solicitud es inválido";
+
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidFormatException ife && ife.getTargetType().isEnum()) {
+            String validValues = Arrays.stream(ife.getTargetType().getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+            message = "Valor inválido: '" + ife.getValue() + "'. Valores permitidos: [" + validValues + "]";
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), message));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String message = "Parámetro inválido '" + ex.getName() + "': se esperaba tipo " +
+                (ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "desconocido");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), message));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(new ErrorResponse(HttpStatus.METHOD_NOT_ALLOWED.value(),
+                        "Método HTTP '" + ex.getMethod() + "' no soportado para este endpoint"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
