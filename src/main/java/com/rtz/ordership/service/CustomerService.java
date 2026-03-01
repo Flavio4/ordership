@@ -9,10 +9,11 @@ import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -25,13 +26,14 @@ public class CustomerService {
         this.customerRepository = customerRepository;
     }
 
-    public List<CustomerResponse> getAllCustomers() {
-        log.info("Listando todos los clientes activos");
-        List<CustomerResponse> customers = customerRepository.findByActiveTrue().stream()
-                .map(CustomerResponse::fromEntity)
-                .toList();
-        log.info("Se encontraron {} clientes", customers.size());
-        return customers;
+    @Transactional(readOnly = true)
+    public Page<CustomerDetailResponse> getAllCustomers(Pageable pageable) {
+        log.info("Listando clientes activos paginados");
+        Page<CustomerDetailResponse> customersPage = customerRepository.findByActiveTrue(pageable)
+                .map(CustomerDetailResponse::fromEntity);
+        log.info("Se encontraron {} clientes en la página actual (Total: {})",
+                customersPage.getNumberOfElements(), customersPage.getTotalElements());
+        return customersPage;
     }
 
     public CustomerResponse getCustomerById(UUID id) {

@@ -9,14 +9,17 @@ import com.rtz.ordership.service.CustomerService;
 import com.rtz.ordership.service.CustomerAddressService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,9 +37,10 @@ public class CustomerController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
-    @Operation(summary = "Listar clientes", description = "Obtiene todos los clientes activos")
-    public ResponseEntity<List<CustomerResponse>> getAllCustomers() {
-        return ResponseEntity.ok(customerService.getAllCustomers());
+    @Operation(summary = "Listar clientes", description = "Obtiene todos los clientes activos filtrados por paginación (incluye sus direcciones)")
+    public ResponseEntity<Page<CustomerDetailResponse>> getAllCustomers(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(customerService.getAllCustomers(pageable));
     }
 
     @GetMapping("/{id}")
