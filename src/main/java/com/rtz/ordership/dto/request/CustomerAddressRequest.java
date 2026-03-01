@@ -6,19 +6,21 @@ import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
 public record CustomerAddressRequest(
-        @NotNull(message = "El ID de la zona es obligatorio") UUID zoneId,
+                @NotNull(message = "El ID de la zona es obligatorio") UUID zoneId,
 
-        @NotBlank(message = "La etiqueta es obligatoria (ej: Casa, Trabajo)") String label,
+                String label,
 
-        @NotBlank(message = "La calle o dirección principal es obligatoria") String street,
+                String street,
 
-        String city,
+                String city,
 
-        @NotBlank(message = "La descripción de la ubicación es obligatoria") String description,
+                String description,
 
-        @NotNull(message = "La latitud es obligatoria") Double latitude,
+                Double latitude,
 
-        @NotNull(message = "La longitud es obligatoria") Double longitude,
+                Double longitude,
 
-        Boolean isDefault) {
+                @NotBlank(message = "El link del mapa es obligatorio") String mapUrl,
+
+                Boolean isDefault) {
 }

@@ -12,6 +12,8 @@ public record ZoneResponse(
         Boolean active,
         Instant createdAt) {
     public static ZoneResponse fromEntity(Zone zone) {
+        if (zone == null)
+            return null;
         return new ZoneResponse(
                 zone.getId(),
                 zone.getName(),

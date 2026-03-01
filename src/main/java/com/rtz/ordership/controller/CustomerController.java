@@ -2,14 +2,18 @@ package com.rtz.ordership.controller;
 
 import com.rtz.ordership.dto.request.CustomerRequest;
 import com.rtz.ordership.dto.request.CustomerUpdateRequest;
+import com.rtz.ordership.dto.request.CustomerWithAddressRequest;
+import com.rtz.ordership.dto.response.CustomerDetailResponse;
 import com.rtz.ordership.dto.response.CustomerResponse;
 import com.rtz.ordership.service.CustomerService;
+import com.rtz.ordership.service.CustomerAddressService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,9 +25,11 @@ import java.util.UUID;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final CustomerAddressService addressService;
 
-    public CustomerController(CustomerService customerService) {
+    public CustomerController(CustomerService customerService, CustomerAddressService addressService) {
         this.customerService = customerService;
+        this.addressService = addressService;
     }
 
     @GetMapping
@@ -35,9 +41,9 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
-    @Operation(summary = "Obtener cliente", description = "Obtiene un cliente por ID")
-    public ResponseEntity<CustomerResponse> getCustomerById(@PathVariable UUID id) {
-        return ResponseEntity.ok(customerService.getCustomerById(id));
+    @Operation(summary = "Obtener detalle del cliente", description = "Obtiene un cliente por ID incluyendo todas sus direcciones")
+    public ResponseEntity<CustomerDetailResponse> getCustomerById(@PathVariable UUID id) {
+        return ResponseEntity.ok(customerService.getCustomerDetail(id));
     }
 
     @PostMapping
@@ -45,6 +51,22 @@ public class CustomerController {
     @Operation(summary = "Crear cliente", description = "Crea un nuevo cliente (requiere ADMIN o OPERATOR)")
     public ResponseEntity<CustomerResponse> createCustomer(@Valid @RequestBody CustomerRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(customerService.createCustomer(request));
+    }
+
+    @PostMapping("/with-address")
+    @Transactional
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Crear cliente con dirección", description = "Crea un cliente y su primera dirección en una sola transacción")
+    public ResponseEntity<CustomerResponse> createCustomerWithAddress(
+            @Valid @RequestBody CustomerWithAddressRequest request) {
+        // 1. Crear el cliente
+        CustomerResponse customer = customerService.createCustomer(request.customer());
+
+        // 2. Crear su dirección asociada
+        addressService.addAddress(customer.id(), request.address());
+
+        // 3. Devolver los datos del cliente recién creado
+        return ResponseEntity.status(HttpStatus.CREATED).body(customer);
     }
 
     @PutMapping("/{id}")

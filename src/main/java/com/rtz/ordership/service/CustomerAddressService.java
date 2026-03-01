@@ -60,6 +60,7 @@ public class CustomerAddressService {
                 .description(request.description())
                 .latitude(request.latitude())
                 .longitude(request.longitude())
+                .mapUrl(request.mapUrl())
                 .isDefault(request.isDefault() != null ? request.isDefault() : false)
                 .active(true)
                 .build();
@@ -99,6 +100,8 @@ public class CustomerAddressService {
             address.setLatitude(request.latitude());
         if (request.longitude() != null)
             address.setLongitude(request.longitude());
+        if (request.mapUrl() != null)
+            address.setMapUrl(request.mapUrl());
         if (request.isDefault() != null)
             address.setIsDefault(request.isDefault());
         if (request.active() != null)

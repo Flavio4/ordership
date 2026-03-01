@@ -27,22 +27,20 @@ public class CustomerAddress {
     @JoinColumn(name = "zone_id", nullable = false)
     private Zone zone;
 
-    @Column(nullable = false)
     private String label;
 
-    @Column(nullable = false)
     private String street;
 
     private String city;
 
-    @Column(nullable = false)
     private String description;
 
-    @Column(nullable = false)
     private Double latitude;
 
-    @Column(nullable = false)
     private Double longitude;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String mapUrl;
 
     @Builder.Default
     @Column(nullable = false)

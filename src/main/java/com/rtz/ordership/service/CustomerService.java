@@ -2,6 +2,7 @@ package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.request.CustomerRequest;
 import com.rtz.ordership.dto.request.CustomerUpdateRequest;
+import com.rtz.ordership.dto.response.CustomerDetailResponse;
 import com.rtz.ordership.dto.response.CustomerResponse;
 import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.exception.DuplicateResourceException;
@@ -37,6 +38,13 @@ public class CustomerService {
         log.info("Buscando cliente por ID: {}", id);
         Customer customer = findCustomerOrThrow(id);
         return CustomerResponse.fromEntity(customer);
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerDetailResponse getCustomerDetail(UUID id) {
+        log.info("Obteniendo detalle completo del cliente ID: {}", id);
+        Customer customer = findCustomerOrThrow(id);
+        return CustomerDetailResponse.fromEntity(customer);
     }
 
     @Transactional
