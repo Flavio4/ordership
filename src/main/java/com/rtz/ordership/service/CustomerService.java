@@ -27,10 +27,18 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
-    public Page<CustomerDetailResponse> getAllCustomers(Pageable pageable) {
-        log.info("Listando clientes activos paginados");
-        Page<CustomerDetailResponse> customersPage = customerRepository.findByActiveTrue(pageable)
-                .map(CustomerDetailResponse::fromEntity);
+    public Page<CustomerDetailResponse> getAllCustomers(String name, Pageable pageable) {
+        log.info("Listando clientes activos paginados | Filtro nombre: {}", name);
+
+        Page<Customer> pageResult;
+        if (name != null && !name.trim().isEmpty()) {
+            pageResult = customerRepository.findByActiveTrueAndFullNameContainingIgnoreCase(name.trim(), pageable);
+        } else {
+            pageResult = customerRepository.findByActiveTrue(pageable);
+        }
+
+        Page<CustomerDetailResponse> customersPage = pageResult.map(CustomerDetailResponse::fromEntity);
+
         log.info("Se encontraron {} clientes en la página actual (Total: {})",
                 customersPage.getNumberOfElements(), customersPage.getTotalElements());
         return customersPage;

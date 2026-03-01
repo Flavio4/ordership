@@ -14,5 +14,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
     Page<Customer> findByActiveTrue(Pageable pageable);
 
+    Page<Customer> findByActiveTrueAndFullNameContainingIgnoreCase(String name, Pageable pageable);
+
     boolean existsByPhone(String phone);
 }
