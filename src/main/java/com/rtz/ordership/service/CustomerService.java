@@ -2,6 +2,7 @@ package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.request.CustomerRequest;
 import com.rtz.ordership.dto.request.CustomerUpdateRequest;
+import com.rtz.ordership.dto.request.CustomerWithAddressRequest;
 import com.rtz.ordership.dto.response.CustomerDetailResponse;
 import com.rtz.ordership.dto.response.CustomerResponse;
 import com.rtz.ordership.entity.Customer;
@@ -21,9 +22,11 @@ import java.util.UUID;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final CustomerAddressService addressService;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, CustomerAddressService addressService) {
         this.customerRepository = customerRepository;
+        this.addressService = addressService;
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +80,20 @@ public class CustomerService {
         customer = customerRepository.save(customer);
         log.info("Cliente creado - id: {}, nombre: {}", customer.getId(), customer.getFullName());
         return CustomerResponse.fromEntity(customer);
+    }
+
+    @Transactional
+    public CustomerResponse createCustomerWithAddress(CustomerWithAddressRequest request) {
+        log.info("Creando cliente con dirección inicial: {} ({})", request.customer().fullName(),
+                request.customer().phone());
+
+        // 1. Crear el cliente
+        CustomerResponse customer = createCustomer(request.customer());
+
+        // 2. Crear su dirección asociada
+        addressService.addAddress(customer.id(), request.address());
+
+        return customer;
     }
 
     @Transactional

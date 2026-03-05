@@ -8,6 +8,7 @@ import com.rtz.ordership.entity.CustomerAddress;
 import com.rtz.ordership.entity.Zone;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerAddressRepository;
+import com.rtz.ordership.repository.CustomerRepository;
 import com.rtz.ordership.repository.ZoneRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,21 +22,21 @@ import java.util.UUID;
 public class CustomerAddressService {
 
     private final CustomerAddressRepository addressRepository;
-    private final CustomerService customerService;
+    private final CustomerRepository customerRepository;
     private final ZoneRepository zoneRepository;
 
     public CustomerAddressService(CustomerAddressRepository addressRepository,
-            CustomerService customerService,
+            CustomerRepository customerRepository,
             ZoneRepository zoneRepository) {
         this.addressRepository = addressRepository;
-        this.customerService = customerService;
+        this.customerRepository = customerRepository;
         this.zoneRepository = zoneRepository;
     }
 
     public List<CustomerAddressResponse> getCustomerAddresses(UUID customerId) {
         log.info("Listando direcciones activas para el cliente ID: {}", customerId);
         // Validamos que el cliente exista
-        customerService.findCustomerOrThrow(customerId);
+        findCustomerOrThrow(customerId);
 
         List<CustomerAddressResponse> addresses = addressRepository.findByCustomerIdAndActiveTrue(customerId).stream()
                 .map(CustomerAddressResponse::fromEntity)
@@ -48,7 +49,7 @@ public class CustomerAddressService {
     public CustomerAddressResponse addAddress(UUID customerId, CustomerAddressRequest request) {
         log.info("Agregando dirección al cliente ID: {} - Zona: {}", customerId, request.zoneId());
 
-        Customer customer = customerService.findCustomerOrThrow(customerId);
+        Customer customer = findCustomerOrThrow(customerId);
         Zone zone = findZoneOrThrow(request.zoneId());
 
         CustomerAddress address = CustomerAddress.builder()
@@ -141,6 +142,14 @@ public class CustomerAddressService {
                 .orElseThrow(() -> {
                     log.warn("Zona no encontrada con ID: {}", id);
                     return new ResourceNotFoundException("Zona no encontrada con ID: " + id);
+                });
+    }
+
+    private Customer findCustomerOrThrow(UUID id) {
+        return customerRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("Cliente no encontrado con ID: {}", id);
+                    return new ResourceNotFoundException("Cliente no encontrado con ID: " + id);
                 });
     }
 }
