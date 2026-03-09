@@ -112,8 +112,23 @@ public class GlobalExceptionHandler {
                                                 "No tiene permisos para realizar esta acción"));
         }
 
+        @ExceptionHandler({ IllegalArgumentException.class, IllegalStateException.class })
+        public ResponseEntity<ErrorResponse> handleIllegalArgumentsAndStates(RuntimeException ex) {
+                log.warn("Operación o estado inválido: {}", ex.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
+        }
+
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
+                if ("PropertyReferenceException".equals(ex.getClass().getSimpleName())) {
+                        log.warn("Propiedad de ordenamiento inválida: {}", ex.getMessage());
+                        String msg = ex.getMessage();
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(),
+                                                        "Parámetro de ordenamiento o filtro inválido: " + msg));
+                }
+
                 log.error("Error inesperado: {}", ex.getMessage(), ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                 .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(),
