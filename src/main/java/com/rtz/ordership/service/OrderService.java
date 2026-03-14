@@ -2,6 +2,7 @@ package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
+import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
 import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.entity.*;
 import com.rtz.ordership.entity.enums.OrderStatus;
@@ -48,26 +49,54 @@ public class OrderService {
         this.productRepository = productRepository;
     }
 
-    // ── Listar pedidos (paginado + filtros opcionales) ──────────────────────
+    // ── Listar pedidos (paginado + filtros opcionales + customerId) ──────────
 
     @Transactional(readOnly = true)
-    public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate, Pageable pageable) {
-        log.info("Listando pedidos | status: {} | fecha: {}", status, deliveryDate);
+    public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
+            UUID customerId, Pageable pageable) {
+        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {}", status, deliveryDate, customerId);
 
         Page<Order> page;
-        if (status != null && deliveryDate != null) {
-            page = orderRepository.findByStatusAndDeliveryDate(status, deliveryDate, pageable);
-        } else if (status != null) {
-            page = orderRepository.findByStatus(status, pageable);
-        } else if (deliveryDate != null) {
-            page = orderRepository.findByDeliveryDate(deliveryDate, pageable);
+        if (customerId != null) {
+            if (status != null && deliveryDate != null) {
+                page = orderRepository.findByCustomerIdAndStatusAndDeliveryDate(customerId, status, deliveryDate,
+                        pageable);
+            } else if (status != null) {
+                page = orderRepository.findByCustomerIdAndStatus(customerId, status, pageable);
+            } else if (deliveryDate != null) {
+                page = orderRepository.findByCustomerIdAndDeliveryDate(customerId, deliveryDate, pageable);
+            } else {
+                page = orderRepository.findByCustomerId(customerId, pageable);
+            }
         } else {
-            page = orderRepository.findAll(pageable);
+            if (status != null && deliveryDate != null) {
+                page = orderRepository.findByStatusAndDeliveryDate(status, deliveryDate, pageable);
+            } else if (status != null) {
+                page = orderRepository.findByStatus(status, pageable);
+            } else if (deliveryDate != null) {
+                page = orderRepository.findByDeliveryDate(deliveryDate, pageable);
+            } else {
+                page = orderRepository.findAll(pageable);
+            }
         }
 
         Page<OrderResponse> result = page.map(OrderResponse::fromEntity);
         log.info("Se encontraron {} pedidos en la página (Total: {})",
                 result.getNumberOfElements(), result.getTotalElements());
+        return result;
+    }
+
+    // ── Pedidos por cliente (para historial) ────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> getOrdersByCustomerId(UUID customerId, Pageable pageable) {
+        log.info("Listando historial de pedidos del cliente ID: {}", customerId);
+        if (!customerRepository.existsById(customerId)) {
+            throw new ResourceNotFoundException("Cliente no encontrado con ID: " + customerId);
+        }
+        Page<OrderResponse> result = orderRepository.findByCustomerId(customerId, pageable)
+                .map(OrderResponse::fromEntity);
+        log.info("Se encontraron {} pedidos del cliente", result.getTotalElements());
         return result;
     }
 
@@ -80,7 +109,7 @@ public class OrderService {
         return OrderResponse.fromEntity(order);
     }
 
-    // ── Crear pedido con ítems ──────────────────────────────────────────────
+    // ── Crear pedido con ítems + descuento de stock ─────────────────────────
 
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
@@ -114,7 +143,7 @@ public class OrderService {
                 .totalAmount(BigDecimal.ZERO) // se calcula abajo
                 .build();
 
-        // Construir ítems y calcular totales
+        // Construir ítems, validar stock y calcular totales
         BigDecimal totalAmount = BigDecimal.ZERO;
 
         List<OrderItem> orderItems = request.items().stream().map(itemReq -> {
@@ -125,6 +154,18 @@ public class OrderService {
             if (!product.getActive()) {
                 throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
             }
+
+            // Validar stock
+            if (product.getStock() < itemReq.quantity()) {
+                throw new IllegalStateException(
+                        "Stock insuficiente para '" + product.getName()
+                                + "'. Disponible: " + product.getStock()
+                                + ", solicitado: " + itemReq.quantity());
+            }
+
+            // Descontar stock
+            product.setStock(product.getStock() - itemReq.quantity());
+            productRepository.save(product);
 
             BigDecimal unitPrice = product.getSalePrice();
             BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(itemReq.quantity()));
@@ -176,7 +217,19 @@ public class OrderService {
         return OrderResponse.fromEntity(order);
     }
 
-    // ── Cancelar pedido ─────────────────────────────────────────────────────
+    // ── Actualizar estado de pago ───────────────────────────────────────────
+
+    @Transactional
+    public OrderResponse updatePaymentStatus(UUID id, PaymentStatusUpdateRequest request) {
+        log.info("Actualizando pago del pedido ID: {} → {}", id, request.paymentStatus());
+        Order order = findOrderOrThrow(id);
+        order.setPaymentStatus(request.paymentStatus());
+        order = orderRepository.save(order);
+        log.info("Pedido ID: {} - pago actualizado a {}", id, request.paymentStatus());
+        return OrderResponse.fromEntity(order);
+    }
+
+    // ── Cancelar pedido + devolver stock ─────────────────────────────────────
 
     @Transactional
     public void cancelOrder(UUID id) {
@@ -185,6 +238,14 @@ public class OrderService {
 
         if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new IllegalStateException("No se puede cancelar un pedido en estado: " + order.getStatus());
+        }
+
+        // Devolver stock
+        for (OrderItem item : order.getItems()) {
+            Product product = item.getProduct();
+            product.setStock(product.getStock() + item.getQuantity());
+            productRepository.save(product);
+            log.info("Stock devuelto: {} +{} unidades", product.getName(), item.getQuantity());
         }
 
         order.setStatus(OrderStatus.CANCELLED);

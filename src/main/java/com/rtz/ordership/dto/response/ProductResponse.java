@@ -16,6 +16,7 @@ public record ProductResponse(
         String unit,
         Currency currency,
         Boolean active,
+        Integer stock,
         Instant createdAt) {
     public static ProductResponse fromEntity(Product product) {
         return new ProductResponse(
@@ -27,6 +28,7 @@ public record ProductResponse(
                 product.getUnit(),
                 product.getCurrency(),
                 product.getActive(),
+                product.getStock(),
                 product.getCreatedAt());
     }
 }

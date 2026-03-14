@@ -43,6 +43,10 @@ public class Product {
     @Column(nullable = false)
     private Boolean active = true;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer stock = 0;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

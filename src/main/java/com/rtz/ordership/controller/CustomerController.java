@@ -5,7 +5,9 @@ import com.rtz.ordership.dto.request.CustomerUpdateRequest;
 import com.rtz.ordership.dto.request.CustomerWithAddressRequest;
 import com.rtz.ordership.dto.response.CustomerDetailResponse;
 import com.rtz.ordership.dto.response.CustomerResponse;
+import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.service.CustomerService;
+import com.rtz.ordership.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
@@ -26,9 +28,11 @@ import java.util.UUID;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final OrderService orderService;
 
-    public CustomerController(CustomerService customerService) {
+    public CustomerController(CustomerService customerService, OrderService orderService) {
         this.customerService = customerService;
+        this.orderService = orderService;
     }
 
     @GetMapping
@@ -77,5 +81,13 @@ public class CustomerController {
     public ResponseEntity<Void> deactivateCustomer(@PathVariable UUID id) {
         customerService.deactivateCustomer(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/orders")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
+    @Operation(summary = "Historial de pedidos", description = "Lista todos los pedidos de un cliente específico")
+    public ResponseEntity<Page<OrderResponse>> getCustomerOrders(@PathVariable UUID id,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(orderService.getOrdersByCustomerId(id, pageable));
     }
 }

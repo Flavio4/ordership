@@ -15,6 +15,7 @@ import com.rtz.ordership.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -189,6 +190,23 @@ public class DeliveryAssignmentService {
         assignment = deliveryRepository.save(assignment);
         log.info("Entrega ID: {} cambió de {} → {}", id, currentStatus, newStatus);
         return DeliveryAssignmentResponse.fromEntity(assignment);
+    }
+
+    // ── Mis entregas (repartidor logueado) ──────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public Page<DeliveryAssignmentResponse> getMyAssignments(DeliveryStatus status, Pageable pageable) {
+        User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        log.info("Listando entregas del repartidor: {} | status: {}", currentUser.getFullName(), status);
+
+        Page<DeliveryAssignment> page;
+        if (status != null) {
+            page = deliveryRepository.findByStatusAndDeliveryUserId(status, currentUser.getId(), pageable);
+        } else {
+            page = deliveryRepository.findByDeliveryUserId(currentUser.getId(), pageable);
+        }
+
+        return page.map(DeliveryAssignmentResponse::fromEntity);
     }
 
     // ── Helper ──────────────────────────────────────────────────────────────

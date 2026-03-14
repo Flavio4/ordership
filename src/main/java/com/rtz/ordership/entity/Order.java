@@ -1,6 +1,7 @@
 package com.rtz.ordership.entity;
 
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,6 +41,11 @@ public class Order {
     @Builder.Default
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    @Column(nullable = false)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;

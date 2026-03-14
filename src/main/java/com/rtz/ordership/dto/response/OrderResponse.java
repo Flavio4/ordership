@@ -2,6 +2,7 @@ package com.rtz.ordership.dto.response;
 
 import com.rtz.ordership.entity.Order;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -17,6 +18,7 @@ public record OrderResponse(
                 String addressMapUrl,
                 String zoneName,
                 OrderStatus status,
+                PaymentStatus paymentStatus,
                 BigDecimal totalAmount,
                 String notes,
                 LocalDate deliveryDate,
@@ -41,6 +43,7 @@ public record OrderResponse(
                                                 ? order.getCustomerAddress().getZone().getName()
                                                 : null,
                                 order.getStatus(),
+                                order.getPaymentStatus(),
                                 order.getTotalAmount(),
                                 order.getNotes(),
                                 order.getDeliveryDate(),

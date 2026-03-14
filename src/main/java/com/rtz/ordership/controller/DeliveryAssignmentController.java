@@ -41,6 +41,15 @@ public class DeliveryAssignmentController {
         return ResponseEntity.ok(deliveryService.getAllAssignments(status, zoneId, deliveryUserId, pageable));
     }
 
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('DELIVERY')")
+    @Operation(summary = "Mis entregas", description = "Lista las entregas asignadas al repartidor autenticado")
+    public ResponseEntity<Page<DeliveryAssignmentResponse>> getMyAssignments(
+            @RequestParam(required = false) DeliveryStatus status,
+            @PageableDefault(size = 20, sort = "assignedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(deliveryService.getMyAssignments(status, pageable));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
     @Operation(summary = "Obtener entrega", description = "Obtiene el detalle de una asignación de entrega")

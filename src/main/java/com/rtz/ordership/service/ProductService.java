@@ -55,6 +55,7 @@ public class ProductService {
                 .salePrice(request.salePrice())
                 .unit(request.unit())
                 .currency(request.currency())
+                .stock(request.stock())
                 .active(true)
                 .build();
 
@@ -88,6 +89,8 @@ public class ProductService {
             product.setCurrency(request.currency());
         if (request.active() != null)
             product.setActive(request.active());
+        if (request.stock() != null)
+            product.setStock(request.stock());
 
         product = productRepository.save(product);
         log.info("Producto actualizado - id: {}, nombre: {}", product.getId(), product.getName());
