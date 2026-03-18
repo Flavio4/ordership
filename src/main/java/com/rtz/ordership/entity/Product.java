@@ -1,6 +1,7 @@
 package com.rtz.ordership.entity;
 
 import com.rtz.ordership.entity.enums.Currency;
+import com.rtz.ordership.entity.enums.Unit;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,8 +33,9 @@ public class Product {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal salePrice;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String unit;
+    private Unit unit;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

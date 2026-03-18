@@ -1,6 +1,7 @@
 package com.rtz.ordership.dto.request;
 
 import com.rtz.ordership.entity.enums.Currency;
+import com.rtz.ordership.entity.enums.Unit;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
@@ -14,7 +15,7 @@ public record ProductRequest(
 
                 @NotNull(message = "El precio de venta es obligatorio") @DecimalMin(value = "0.0", inclusive = false, message = "El precio de venta debe ser mayor a 0") BigDecimal salePrice,
 
-                @NotBlank(message = "La unidad es obligatoria") String unit,
+                @NotNull(message = "La unidad es obligatoria") Unit unit,
 
                 @NotNull(message = "La moneda es obligatoria") Currency currency,
 
