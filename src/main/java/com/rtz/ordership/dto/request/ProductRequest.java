@@ -19,5 +19,7 @@ public record ProductRequest(
 
                 @NotNull(message = "La moneda es obligatoria") Currency currency,
 
-                @NotNull(message = "El stock es obligatorio") @Min(value = 0, message = "El stock no puede ser negativo") Integer stock) {
+                @NotNull(message = "El stock es obligatorio") @Min(value = 0, message = "El stock no puede ser negativo") Integer stock,
+
+                String shopifySku) {
 }

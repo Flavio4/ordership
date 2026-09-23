@@ -49,6 +49,9 @@ public class Product {
     @Column(nullable = false)
     private Integer stock = 0;
 
+    @Column(unique = true)
+    private String shopifySku;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

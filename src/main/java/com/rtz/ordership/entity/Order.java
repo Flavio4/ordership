@@ -31,12 +31,14 @@ public class Order {
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_address_id", nullable = false)
+    // Null cuando el pedido llega de Shopify sin una dirección zonificada todavía (ver shippingAddressRaw)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_address_id")
     private CustomerAddress customerAddress;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "created_by_user_id", nullable = false)
+    // Null en pedidos de Shopify: no los crea un operador logueado
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
     private User createdBy;
 
     @Enumerated(EnumType.STRING)
@@ -64,6 +66,12 @@ public class Order {
     private String trackingCode;
 
     private Instant confirmedAt;
+
+    @Column(unique = true)
+    private String shopifyOrderId;
+
+    @Column(columnDefinition = "TEXT")
+    private String shippingAddressRaw;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;

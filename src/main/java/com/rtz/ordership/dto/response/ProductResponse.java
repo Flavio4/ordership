@@ -18,6 +18,7 @@ public record ProductResponse(
         Currency currency,
         Boolean active,
         Integer stock,
+        String shopifySku,
         Instant createdAt) {
     public static ProductResponse fromEntity(Product product) {
         return new ProductResponse(
@@ -30,6 +31,7 @@ public record ProductResponse(
                 product.getCurrency(),
                 product.getActive(),
                 product.getStock(),
+                product.getShopifySku(),
                 product.getCreatedAt());
     }
 }

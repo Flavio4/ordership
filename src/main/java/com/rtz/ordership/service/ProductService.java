@@ -48,6 +48,12 @@ public class ProductService {
             throw new DuplicateResourceException("Ya existe un producto con el nombre: " + request.name());
         }
 
+        if (request.shopifySku() != null && !request.shopifySku().isBlank()
+                && productRepository.existsByShopifySku(request.shopifySku())) {
+            throw new DuplicateResourceException(
+                    "Ya existe un producto con el shopifySku: " + request.shopifySku());
+        }
+
         Product product = Product.builder()
                 .name(request.name())
                 .description(request.description())
@@ -56,6 +62,7 @@ public class ProductService {
                 .unit(request.unit())
                 .currency(request.currency())
                 .stock(request.stock())
+                .shopifySku(request.shopifySku())
                 .active(true)
                 .build();
 
@@ -91,6 +98,14 @@ public class ProductService {
             product.setActive(request.active());
         if (request.stock() != null)
             product.setStock(request.stock());
+        if (request.shopifySku() != null) {
+            if (!request.shopifySku().equals(product.getShopifySku())
+                    && productRepository.existsByShopifySku(request.shopifySku())) {
+                throw new DuplicateResourceException(
+                        "Ya existe un producto con el shopifySku: " + request.shopifySku());
+            }
+            product.setShopifySku(request.shopifySku());
+        }
 
         product = productRepository.save(product);
         log.info("Producto actualizado - id: {}, nombre: {}", product.getId(), product.getName());

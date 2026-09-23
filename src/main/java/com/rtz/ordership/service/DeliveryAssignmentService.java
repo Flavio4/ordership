@@ -96,11 +96,18 @@ public class DeliveryAssignmentService {
     public DeliveryAssignmentResponse assignOrder(DeliveryAssignmentRequest request) {
         log.info("Asignando pedido ID: {} al repartidor ID: {}", request.orderId(), request.deliveryUserId());
 
-        // 1. Validar que el pedido exista y esté en PENDING
+        // 1. Validar que el pedido exista y esté confirmado por el cliente
         Order order = orderService.findOrderOrThrow(request.orderId());
-        if (order.getStatus() != OrderStatus.PENDING) {
+        if (order.getStatus() != OrderStatus.CONFIRMED) {
             throw new IllegalStateException(
-                    "Solo se pueden asignar pedidos en estado PENDING. Estado actual: " + order.getStatus());
+                    "Solo se pueden asignar pedidos en estado CONFIRMED. Estado actual: " + order.getStatus());
+        }
+
+        // 1b. Validar que tenga una dirección zonificada (los pedidos de Shopify
+        // pueden llegar sin una todavía)
+        if (order.getCustomerAddress() == null) {
+            throw new IllegalStateException(
+                    "El pedido no tiene una dirección con zona asignada. Completá la dirección del cliente antes de asignar el reparto.");
         }
 
         // 2. Validar que no esté ya asignado

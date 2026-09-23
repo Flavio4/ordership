@@ -1,5 +1,6 @@
 package com.rtz.ordership.controller;
 
+import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
@@ -72,6 +73,14 @@ public class OrderController {
     public ResponseEntity<OrderResponse> updatePaymentStatus(@PathVariable UUID id,
             @Valid @RequestBody PaymentStatusUpdateRequest request) {
         return ResponseEntity.ok(orderService.updatePaymentStatus(id, request));
+    }
+
+    @PatchMapping("/{id}/address")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Asignar dirección", description = "Vincula una dirección con zona a un pedido que no tiene una todavía (por ejemplo, pedidos de Shopify)")
+    public ResponseEntity<OrderResponse> updateOrderAddress(@PathVariable UUID id,
+            @Valid @RequestBody OrderAddressUpdateRequest request) {
+        return ResponseEntity.ok(orderService.updateOrderAddress(id, request));
     }
 
     @DeleteMapping("/{id}")

@@ -1,5 +1,7 @@
 package com.rtz.ordership.service;
 
+import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
+import com.rtz.ordership.dto.request.OrderItemRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
@@ -159,46 +161,8 @@ public class OrderService {
                 .totalAmount(BigDecimal.ZERO) // se calcula abajo
                 .build();
 
-        // Construir ítems, validar stock y calcular totales
-        BigDecimal totalAmount = BigDecimal.ZERO;
-
-        List<OrderItem> orderItems = request.items().stream().map(itemReq -> {
-            Product product = productRepository.findById(itemReq.productId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Producto no encontrado con ID: " + itemReq.productId()));
-
-            if (!product.getActive()) {
-                throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
-            }
-
-            // Validar stock
-            if (product.getStock() < itemReq.quantity()) {
-                throw new IllegalStateException(
-                        "Stock insuficiente para '" + product.getName()
-                                + "'. Disponible: " + product.getStock()
-                                + ", solicitado: " + itemReq.quantity());
-            }
-
-            // Descontar stock
-            product.setStock(product.getStock() - itemReq.quantity());
-            productRepository.save(product);
-
-            BigDecimal unitPrice = product.getSalePrice();
-            BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(itemReq.quantity()));
-
-            return OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(itemReq.quantity())
-                    .unitPrice(unitPrice)
-                    .subtotal(subtotal)
-                    .build();
-        }).toList();
-
-        // Calcular el total
-        for (OrderItem item : orderItems) {
-            totalAmount = totalAmount.add(item.getSubtotal());
-        }
+        List<OrderItem> orderItems = buildOrderItems(order, request.items());
+        BigDecimal totalAmount = sumSubtotals(orderItems);
 
         order.setTotalAmount(totalAmount);
         order.getItems().addAll(orderItems);
@@ -207,6 +171,88 @@ public class OrderService {
         log.info("Pedido creado - id: {}, cliente: {}, total: {}, ítems: {}",
                 saved.getId(), customer.getFullName(), totalAmount, orderItems.size());
         return OrderResponse.fromEntity(saved);
+    }
+
+    // ── Crear pedido a partir de un webhook de Shopify ──────────────────────
+
+    @Transactional
+    public OrderResponse createOrderFromShopify(Customer customer, String shippingAddressRaw,
+            String shopifyOrderId, LocalDate deliveryDate, List<OrderItemRequest> items) {
+
+        if (orderRepository.existsByShopifyOrderId(shopifyOrderId)) {
+            log.info("Pedido de Shopify {} ya fue procesado, se ignora", shopifyOrderId);
+            return OrderResponse.fromEntity(orderRepository.findByShopifyOrderId(shopifyOrderId).orElseThrow());
+        }
+
+        Order order = Order.builder()
+                .customer(customer)
+                .customerAddress(null)
+                .createdBy(null)
+                .status(OrderStatus.PENDING)
+                .source(OrderSource.SHOPIFY)
+                .shippingMethod(ShippingMethod.OWN_DELIVERY)
+                .shopifyOrderId(shopifyOrderId)
+                .shippingAddressRaw(shippingAddressRaw)
+                .deliveryDate(deliveryDate)
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+
+        List<OrderItem> orderItems = buildOrderItems(order, items);
+        BigDecimal totalAmount = sumSubtotals(orderItems);
+
+        order.setTotalAmount(totalAmount);
+        order.getItems().addAll(orderItems);
+
+        Order saved = orderRepository.save(order);
+        log.info("Pedido Shopify creado - id: {}, shopifyOrderId: {}, cliente: {}, total: {}, ítems: {}",
+                saved.getId(), shopifyOrderId, customer.getFullName(), totalAmount, orderItems.size());
+        return OrderResponse.fromEntity(saved);
+    }
+
+    // ── Helpers de ítems (compartidos entre creación manual y Shopify) ──────
+
+    private List<OrderItem> buildOrderItems(Order order, List<OrderItemRequest> items) {
+        return items.stream().map(itemReq -> {
+            Product product = productRepository.findById(itemReq.productId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Producto no encontrado con ID: " + itemReq.productId()));
+            return buildOrderItem(order, product, itemReq.quantity());
+        }).toList();
+    }
+
+    private OrderItem buildOrderItem(Order order, Product product, Integer quantity) {
+        if (!product.getActive()) {
+            throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
+        }
+
+        if (product.getStock() < quantity) {
+            throw new IllegalStateException(
+                    "Stock insuficiente para '" + product.getName()
+                            + "'. Disponible: " + product.getStock()
+                            + ", solicitado: " + quantity);
+        }
+
+        product.setStock(product.getStock() - quantity);
+        productRepository.save(product);
+
+        BigDecimal unitPrice = product.getSalePrice();
+        BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+
+        return OrderItem.builder()
+                .order(order)
+                .product(product)
+                .quantity(quantity)
+                .unitPrice(unitPrice)
+                .subtotal(subtotal)
+                .build();
+    }
+
+    private BigDecimal sumSubtotals(List<OrderItem> items) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderItem item : items) {
+            total = total.add(item.getSubtotal());
+        }
+        return total;
     }
 
     // ── Cambiar estado del pedido ───────────────────────────────────────────
@@ -246,6 +292,27 @@ public class OrderService {
         order.setPaymentStatus(request.paymentStatus());
         order = orderRepository.save(order);
         log.info("Pedido ID: {} - pago actualizado a {}", id, request.paymentStatus());
+        return OrderResponse.fromEntity(order);
+    }
+
+    // ── Completar dirección de un pedido (pedidos Shopify sin dirección) ────
+
+    @Transactional
+    public OrderResponse updateOrderAddress(UUID id, OrderAddressUpdateRequest request) {
+        log.info("Asignando dirección {} al pedido ID: {}", request.customerAddressId(), id);
+        Order order = findOrderOrThrow(id);
+
+        CustomerAddress address = addressRepository.findById(request.customerAddressId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Dirección no encontrada con ID: " + request.customerAddressId()));
+
+        if (!address.getCustomer().getId().equals(order.getCustomer().getId())) {
+            throw new ResourceNotFoundException("La dirección no pertenece al cliente del pedido");
+        }
+
+        order.setCustomerAddress(address);
+        order = orderRepository.save(order);
+        log.info("Pedido ID: {} - dirección asignada: {}", id, address.getId());
         return OrderResponse.fromEntity(order);
     }
 

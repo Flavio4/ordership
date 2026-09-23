@@ -19,6 +19,7 @@ public record OrderResponse(
                 String addressLabel,
                 String addressMapUrl,
                 String zoneName,
+                String shippingAddressRaw,
                 OrderStatus status,
                 PaymentStatus paymentStatus,
                 OrderSource source,
@@ -44,11 +45,12 @@ public record OrderResponse(
                                 order.getId(),
                                 order.getCustomer().getFullName(),
                                 order.getCustomer().getPhone(),
-                                order.getCustomerAddress().getLabel(),
-                                order.getCustomerAddress().getMapUrl(),
-                                order.getCustomerAddress().getZone() != null
+                                order.getCustomerAddress() != null ? order.getCustomerAddress().getLabel() : null,
+                                order.getCustomerAddress() != null ? order.getCustomerAddress().getMapUrl() : null,
+                                order.getCustomerAddress() != null && order.getCustomerAddress().getZone() != null
                                                 ? order.getCustomerAddress().getZone().getName()
                                                 : null,
+                                order.getShippingAddressRaw(),
                                 order.getStatus(),
                                 order.getPaymentStatus(),
                                 order.getSource(),
@@ -61,7 +63,7 @@ public record OrderResponse(
                                 order.getItems().stream()
                                                 .map(OrderItemResponse::fromEntity)
                                                 .toList(),
-                                order.getCreatedBy().getFullName(),
+                                order.getCreatedBy() != null ? order.getCreatedBy().getFullName() : null,
                                 deliveryUser,
                                 order.getConfirmedAt(),
                                 order.getCreatedAt(),

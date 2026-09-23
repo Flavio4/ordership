@@ -13,5 +13,6 @@ public record ProductUpdateRequest(
         Unit unit,
         Currency currency,
         Boolean active,
-        Integer stock) {
+        Integer stock,
+        String shopifySku) {
 }
