@@ -1,8 +1,10 @@
 package com.rtz.ordership.dto.response;
 
 import com.rtz.ordership.entity.Order;
+import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.entity.enums.PaymentStatus;
+import com.rtz.ordership.entity.enums.ShippingMethod;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,12 +21,17 @@ public record OrderResponse(
                 String zoneName,
                 OrderStatus status,
                 PaymentStatus paymentStatus,
+                OrderSource source,
+                ShippingMethod shippingMethod,
+                String courierName,
+                String trackingCode,
                 BigDecimal totalAmount,
                 String notes,
                 LocalDate deliveryDate,
                 List<OrderItemResponse> items,
                 String createdByName,
                 String deliveryUserName,
+                Instant confirmedAt,
                 Instant createdAt,
                 Instant updatedAt) {
         public static OrderResponse fromEntity(Order order) {
@@ -44,6 +51,10 @@ public record OrderResponse(
                                                 : null,
                                 order.getStatus(),
                                 order.getPaymentStatus(),
+                                order.getSource(),
+                                order.getShippingMethod(),
+                                order.getCourierName(),
+                                order.getTrackingCode(),
                                 order.getTotalAmount(),
                                 order.getNotes(),
                                 order.getDeliveryDate(),
@@ -52,6 +63,7 @@ public record OrderResponse(
                                                 .toList(),
                                 order.getCreatedBy().getFullName(),
                                 deliveryUser,
+                                order.getConfirmedAt(),
                                 order.getCreatedAt(),
                                 order.getUpdatedAt());
         }

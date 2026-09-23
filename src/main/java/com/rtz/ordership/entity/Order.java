@@ -1,7 +1,9 @@
 package com.rtz.ordership.entity;
 
+import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.entity.enums.PaymentStatus;
+import com.rtz.ordership.entity.enums.ShippingMethod;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -46,6 +48,22 @@ public class Order {
     @Builder.Default
     @Column(nullable = false)
     private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    @Column(nullable = false, updatable = false)
+    private OrderSource source = OrderSource.MANUAL;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    @Column(nullable = false)
+    private ShippingMethod shippingMethod = ShippingMethod.OWN_DELIVERY;
+
+    private String courierName;
+
+    private String trackingCode;
+
+    private Instant confirmedAt;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;

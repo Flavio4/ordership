@@ -5,7 +5,9 @@ import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
 import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.entity.*;
+import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.ShippingMethod;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.*;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +36,8 @@ public class OrderService {
 
     // Transiciones de estado válidas
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
-            OrderStatus.PENDING, Set.of(OrderStatus.ASSIGNED, OrderStatus.CANCELLED),
+            OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+            OrderStatus.CONFIRMED, Set.of(OrderStatus.ASSIGNED, OrderStatus.CANCELLED),
             OrderStatus.ASSIGNED, Set.of(OrderStatus.IN_TRANSIT, OrderStatus.CANCELLED),
             OrderStatus.IN_TRANSIT, Set.of(OrderStatus.DELIVERED, OrderStatus.CANCELLED),
             OrderStatus.DELIVERED, Set.of(),
@@ -132,12 +136,24 @@ public class OrderService {
             throw new ResourceNotFoundException("La dirección no pertenece al cliente especificado");
         }
 
+        ShippingMethod shippingMethod = request.shippingMethod() != null
+                ? request.shippingMethod()
+                : ShippingMethod.OWN_DELIVERY;
+        if (shippingMethod == ShippingMethod.COURIER
+                && (request.courierName() == null || request.courierName().isBlank())) {
+            throw new IllegalArgumentException("El nombre de la empresa de envíos es obligatorio para envío por courier");
+        }
+
         // Construir el pedido
         Order order = Order.builder()
                 .customer(customer)
                 .customerAddress(address)
                 .createdBy(currentUser)
                 .status(OrderStatus.PENDING)
+                .source(OrderSource.MANUAL)
+                .shippingMethod(shippingMethod)
+                .courierName(shippingMethod == ShippingMethod.COURIER ? request.courierName() : null)
+                .trackingCode(request.trackingCode())
                 .notes(request.notes())
                 .deliveryDate(request.deliveryDate())
                 .totalAmount(BigDecimal.ZERO) // se calcula abajo
@@ -209,6 +225,10 @@ public class OrderService {
             throw new IllegalStateException(
                     String.format("Transición inválida: %s → %s. Transiciones permitidas: %s",
                             currentStatus, newStatus, allowed));
+        }
+
+        if (newStatus == OrderStatus.CONFIRMED) {
+            order.setConfirmedAt(Instant.now());
         }
 
         order.setStatus(newStatus);

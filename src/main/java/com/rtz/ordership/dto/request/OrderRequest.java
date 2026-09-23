@@ -1,5 +1,6 @@
 package com.rtz.ordership.dto.request;
 
+import com.rtz.ordership.entity.enums.ShippingMethod;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -13,5 +14,8 @@ public record OrderRequest(
         @NotNull(message = "El ID de la dirección es obligatorio") UUID customerAddressId,
         LocalDate deliveryDate,
         String notes,
+        ShippingMethod shippingMethod,
+        String courierName,
+        String trackingCode,
         @NotEmpty(message = "El pedido debe tener al menos un ítem") @Valid List<OrderItemRequest> items) {
 }
