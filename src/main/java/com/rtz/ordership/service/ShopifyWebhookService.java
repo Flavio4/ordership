@@ -1,6 +1,6 @@
 package com.rtz.ordership.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.rtz.ordership.dto.request.OrderItemRequest;
 import com.rtz.ordership.dto.webhook.ShopifyOrderWebhookPayload;
 import com.rtz.ordership.dto.webhook.ShopifyOrderWebhookPayload.ShopifyAddress;
