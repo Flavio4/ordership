@@ -5,6 +5,7 @@ import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
 import com.rtz.ordership.dto.response.OrderResponse;
+import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,13 +37,14 @@ public class OrderController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
-    @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega y cliente")
+    @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega, cliente y origen (MANUAL/SHOPIFY)")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
             @RequestParam(required = false) UUID customerId,
+            @RequestParam(required = false) OrderSource source,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, pageable));
+        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, pageable));
     }
 
     @GetMapping("/{id}")

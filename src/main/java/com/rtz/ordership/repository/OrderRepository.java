@@ -1,6 +1,7 @@
 package com.rtz.ordership.repository;
 
 import com.rtz.ordership.entity.Order;
+import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,20 +24,19 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     Optional<Order> findByShopifyOrderId(String shopifyOrderId);
 
-    Page<Order> findByStatus(OrderStatus status, Pageable pageable);
-
-    Page<Order> findByDeliveryDate(LocalDate deliveryDate, Pageable pageable);
-
-    Page<Order> findByStatusAndDeliveryDate(OrderStatus status, LocalDate deliveryDate, Pageable pageable);
-
-    // Filtros por cliente
     Page<Order> findByCustomerId(UUID customerId, Pageable pageable);
 
-    Page<Order> findByCustomerIdAndStatus(UUID customerId, OrderStatus status, Pageable pageable);
-
-    Page<Order> findByCustomerIdAndDeliveryDate(UUID customerId, LocalDate deliveryDate, Pageable pageable);
-
-    Page<Order> findByCustomerIdAndStatusAndDeliveryDate(UUID customerId, OrderStatus status, LocalDate deliveryDate,
+    @Query("""
+            SELECT o FROM Order o
+            WHERE (:customerId IS NULL OR o.customer.id = :customerId)
+              AND (:status IS NULL OR o.status = :status)
+              AND (:deliveryDate IS NULL OR o.deliveryDate = :deliveryDate)
+              AND (:source IS NULL OR o.source = :source)
+            """)
+    Page<Order> search(@Param("customerId") UUID customerId,
+            @Param("status") OrderStatus status,
+            @Param("deliveryDate") LocalDate deliveryDate,
+            @Param("source") OrderSource source,
             Pageable pageable);
 
     // Dashboard queries

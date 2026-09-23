@@ -59,32 +59,11 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
-            UUID customerId, Pageable pageable) {
-        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {}", status, deliveryDate, customerId);
+            UUID customerId, OrderSource source, Pageable pageable) {
+        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {}",
+                status, deliveryDate, customerId, source);
 
-        Page<Order> page;
-        if (customerId != null) {
-            if (status != null && deliveryDate != null) {
-                page = orderRepository.findByCustomerIdAndStatusAndDeliveryDate(customerId, status, deliveryDate,
-                        pageable);
-            } else if (status != null) {
-                page = orderRepository.findByCustomerIdAndStatus(customerId, status, pageable);
-            } else if (deliveryDate != null) {
-                page = orderRepository.findByCustomerIdAndDeliveryDate(customerId, deliveryDate, pageable);
-            } else {
-                page = orderRepository.findByCustomerId(customerId, pageable);
-            }
-        } else {
-            if (status != null && deliveryDate != null) {
-                page = orderRepository.findByStatusAndDeliveryDate(status, deliveryDate, pageable);
-            } else if (status != null) {
-                page = orderRepository.findByStatus(status, pageable);
-            } else if (deliveryDate != null) {
-                page = orderRepository.findByDeliveryDate(deliveryDate, pageable);
-            } else {
-                page = orderRepository.findAll(pageable);
-            }
-        }
+        Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source, pageable);
 
         Page<OrderResponse> result = page.map(OrderResponse::fromEntity);
         log.info("Se encontraron {} pedidos en la página (Total: {})",
