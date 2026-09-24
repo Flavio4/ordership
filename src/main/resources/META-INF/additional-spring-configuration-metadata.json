@@ -29,6 +29,16 @@
       "name": "app.cors.allowed-origins",
       "type": "java.lang.String",
       "description": "A description for 'app.cors.allowed-origins'"
+    },
+    {
+      "name": "app.shopify.allow-unsigned-webhooks",
+      "type": "java.lang.String",
+      "description": "A description for 'app.shopify.allow-unsigned-webhooks'"
+    },
+    {
+      "name": "SPRING_PROFILES_ACTIVE",
+      "type": "java.lang.String",
+      "description": "A description for 'SPRING_PROFILES_ACTIVE'"
     }
   ]
 }

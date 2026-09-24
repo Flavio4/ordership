@@ -27,31 +27,38 @@ public class ShopifyWebhookController {
     @Value("${app.shopify.webhook-secret:}")
     private String webhookSecret;
 
+    @Value("${app.shopify.allow-unsigned-webhooks:false}")
+    private boolean allowUnsignedWebhooks;
+
     public ShopifyWebhookController(ShopifyWebhookService shopifyWebhookService) {
         this.shopifyWebhookService = shopifyWebhookService;
     }
 
     @PostMapping("/orders")
     public ResponseEntity<Void> handleOrderCreated(
-            @RequestBody String rawBody,
+            @RequestBody byte[] rawBody,
             @RequestHeader(value = "X-Shopify-Hmac-Sha256", required = false) String hmacHeader) {
 
         if (webhookSecret == null || webhookSecret.isBlank()) {
-            log.warn("SHOPIFY_WEBHOOK_SECRET no configurado - se acepta el webhook sin verificar firma");
+            if (!allowUnsignedWebhooks) {
+                log.error("Webhook de Shopify rechazado: SHOPIFY_WEBHOOK_SECRET no configurado");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+            }
+            log.warn("SHOPIFY_WEBHOOK_SECRET no configurado - se acepta el webhook sin verificar firma (solo dev)");
         } else if (hmacHeader == null || !isValidSignature(rawBody, hmacHeader)) {
             log.warn("Webhook de Shopify rechazado: firma HMAC inválida o ausente");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        shopifyWebhookService.processOrderCreated(rawBody);
+        shopifyWebhookService.processOrderCreated(new String(rawBody, StandardCharsets.UTF_8));
         return ResponseEntity.ok().build();
     }
 
-    private boolean isValidSignature(String rawBody, String hmacHeader) {
+    private boolean isValidSignature(byte[] rawBody, String hmacHeader) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] computed = mac.doFinal(rawBody.getBytes(StandardCharsets.UTF_8));
+            byte[] computed = mac.doFinal(rawBody);
             String computedBase64 = Base64.getEncoder().encodeToString(computed);
             return MessageDigest.isEqual(
                     computedBase64.getBytes(StandardCharsets.UTF_8),

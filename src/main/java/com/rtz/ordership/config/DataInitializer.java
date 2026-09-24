@@ -32,6 +32,10 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         if (!userRepository.existsByEmail(adminEmail)) {
+            if (adminPassword == null || adminPassword.isBlank()) {
+                throw new IllegalStateException(
+                        "No existe el usuario administrador y ADMIN_PASSWORD no está configurado");
+            }
             User admin = User.builder()
                     .email(adminEmail)
                     .password(passwordEncoder.encode(adminPassword))
