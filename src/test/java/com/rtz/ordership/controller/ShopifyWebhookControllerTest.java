@@ -70,6 +70,33 @@ class ShopifyWebhookControllerTest {
     }
 
     @Test
+    void rejectsHexSignature() throws Exception {
+        // Mismo HMAC pero en hexadecimal: Shopify firma los webhooks en Base64, así que no debe aceptarse
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String hex = java.util.HexFormat.of().formatHex(mac.doFinal(BODY.getBytes(StandardCharsets.UTF_8)));
+
+        mockMvc.perform(post("/api/webhooks/shopify/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.getBytes(StandardCharsets.UTF_8))
+                        .header("X-Shopify-Hmac-Sha256", hex))
+                .andExpect(status().isUnauthorized());
+
+        verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+    }
+
+    @Test
+    void rejectsBlankSignature() throws Exception {
+        mockMvc.perform(post("/api/webhooks/shopify/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.getBytes(StandardCharsets.UTF_8))
+                        .header("X-Shopify-Hmac-Sha256", "   "))
+                .andExpect(status().isUnauthorized());
+
+        verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+    }
+
+    @Test
     void rejectsMissingSignature() throws Exception {
         mockMvc.perform(post("/api/webhooks/shopify/orders")
                         .contentType(MediaType.APPLICATION_JSON)

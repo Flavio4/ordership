@@ -50,7 +50,7 @@ public class ShopifyWebhookController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        // Los errores de datos quedan registrados como fallo pendiente y se responde 200 igual;
+        // Si el pedido no se puede crear por datos incompletos, queda guardado como fallo y se responde 200 igual;
         // solo un error técnico devuelve 500 para que Shopify reintente.
         shopifyWebhookService.receiveOrderCreated(new String(rawBody, StandardCharsets.UTF_8));
         return ResponseEntity.ok().build();
@@ -58,6 +58,7 @@ public class ShopifyWebhookController {
 
     private boolean isValidSignature(byte[] rawBody, String hmacHeader) {
         try {
+            // Los webhooks de Shopify firman en Base64 (el hexadecimal es solo para OAuth y app proxies)
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] computed = mac.doFinal(rawBody);
