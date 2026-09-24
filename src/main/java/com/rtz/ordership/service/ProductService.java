@@ -86,8 +86,11 @@ public class ProductService {
         }
         if (request.description() != null)
             product.setDescription(request.description());
-        if (request.purchasePrice() != null)
+        if (request.purchasePrice() != null) {
             product.setPurchasePrice(request.purchasePrice());
+            // Cargar el precio de compra completa un producto creado automáticamente desde Shopify
+            product.setNeedsReview(false);
+        }
         if (request.salePrice() != null)
             product.setSalePrice(request.salePrice());
         if (request.unit() != null)

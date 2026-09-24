@@ -52,6 +52,11 @@ public class Product {
     @Column(unique = true)
     private String shopifySku;
 
+    // true = creado automáticamente desde un pedido de Shopify; falta completar el precio de compra
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean needsReview = false;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

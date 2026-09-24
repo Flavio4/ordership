@@ -50,7 +50,9 @@ public class ShopifyWebhookController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        shopifyWebhookService.processOrderCreated(new String(rawBody, StandardCharsets.UTF_8));
+        // Los errores de datos quedan registrados como fallo pendiente y se responde 200 igual;
+        // solo un error técnico devuelve 500 para que Shopify reintente.
+        shopifyWebhookService.receiveOrderCreated(new String(rawBody, StandardCharsets.UTF_8));
         return ResponseEntity.ok().build();
     }
 

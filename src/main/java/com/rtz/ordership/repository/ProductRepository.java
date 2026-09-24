@@ -16,4 +16,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     boolean existsByShopifySku(String shopifySku);
 
     Optional<Product> findByShopifySku(String shopifySku);
+
+    Optional<Product> findFirstByNameIgnoreCaseAndShopifySkuIsNull(String name);
 }

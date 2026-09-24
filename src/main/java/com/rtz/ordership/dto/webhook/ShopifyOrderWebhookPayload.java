@@ -3,6 +3,7 @@ package com.rtz.ordership.dto.webhook;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -10,6 +11,7 @@ public record ShopifyOrderWebhookPayload(
         Long id,
         String email,
         String phone,
+        String currency,
         ShopifyCustomer customer,
         @JsonProperty("shipping_address") ShopifyAddress shippingAddress,
         @JsonProperty("line_items") List<ShopifyLineItem> lineItems) {
@@ -40,7 +42,9 @@ public record ShopifyOrderWebhookPayload(
     public record ShopifyLineItem(
             Long id,
             String title,
+            @JsonProperty("variant_title") String variantTitle,
             String sku,
-            Integer quantity) {
+            Integer quantity,
+            BigDecimal price) {
     }
 }

@@ -19,6 +19,7 @@ public record ProductResponse(
         Boolean active,
         Integer stock,
         String shopifySku,
+        Boolean needsReview,
         Instant createdAt) {
     public static ProductResponse fromEntity(Product product) {
         return new ProductResponse(
@@ -32,6 +33,7 @@ public record ProductResponse(
                 product.getActive(),
                 product.getStock(),
                 product.getShopifySku(),
+                product.getNeedsReview(),
                 product.getCreatedAt());
     }
 }

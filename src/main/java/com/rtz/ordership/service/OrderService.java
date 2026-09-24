@@ -140,7 +140,7 @@ public class OrderService {
                 .totalAmount(BigDecimal.ZERO) // se calcula abajo
                 .build();
 
-        List<OrderItem> orderItems = buildOrderItems(order, request.items());
+        List<OrderItem> orderItems = buildOrderItems(order, request.items(), true);
         BigDecimal totalAmount = sumSubtotals(orderItems);
 
         order.setTotalAmount(totalAmount);
@@ -176,7 +176,8 @@ public class OrderService {
                 .totalAmount(BigDecimal.ZERO)
                 .build();
 
-        List<OrderItem> orderItems = buildOrderItems(order, items);
+        // La venta ya ocurrió en Shopify (el cliente pagó): no se rechaza por stock ni por producto desactivado
+        List<OrderItem> orderItems = buildOrderItems(order, items, false);
         BigDecimal totalAmount = sumSubtotals(orderItems);
 
         order.setTotalAmount(totalAmount);
@@ -190,25 +191,36 @@ public class OrderService {
 
     // ── Helpers de ítems (compartidos entre creación manual y Shopify) ──────
 
-    private List<OrderItem> buildOrderItems(Order order, List<OrderItemRequest> items) {
+    /**
+     * @param validateAvailability true = rechaza productos desactivados o sin stock suficiente (pedidos manuales).
+     *                             false = los acepta y el stock puede quedar negativo (pedidos ya vendidos en Shopify).
+     */
+    private List<OrderItem> buildOrderItems(Order order, List<OrderItemRequest> items, boolean validateAvailability) {
         return items.stream().map(itemReq -> {
             Product product = productRepository.findById(itemReq.productId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Producto no encontrado con ID: " + itemReq.productId()));
-            return buildOrderItem(order, product, itemReq.quantity());
+            return buildOrderItem(order, product, itemReq.quantity(), validateAvailability);
         }).toList();
     }
 
-    private OrderItem buildOrderItem(Order order, Product product, Integer quantity) {
+    private OrderItem buildOrderItem(Order order, Product product, Integer quantity, boolean validateAvailability) {
         if (!product.getActive()) {
-            throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
+            if (validateAvailability) {
+                throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
+            }
+            log.warn("Pedido Shopify con producto desactivado: '{}'", product.getName());
         }
 
         if (product.getStock() < quantity) {
-            throw new IllegalStateException(
-                    "Stock insuficiente para '" + product.getName()
-                            + "'. Disponible: " + product.getStock()
-                            + ", solicitado: " + quantity);
+            if (validateAvailability) {
+                throw new IllegalStateException(
+                        "Stock insuficiente para '" + product.getName()
+                                + "'. Disponible: " + product.getStock()
+                                + ", solicitado: " + quantity);
+            }
+            log.warn("Pedido Shopify deja stock negativo para '{}': disponible {}, vendido {}",
+                    product.getName(), product.getStock(), quantity);
         }
 
         product.setStock(product.getStock() - quantity);
