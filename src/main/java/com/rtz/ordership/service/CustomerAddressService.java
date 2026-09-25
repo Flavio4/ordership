@@ -67,6 +67,7 @@ public class CustomerAddressService {
                 .build();
 
         address = addressRepository.save(address);
+        keepSingleDefault(address);
         log.info("Dirección agregada - id: {}", address.getId());
         return CustomerAddressResponse.fromEntity(address);
     }
@@ -109,6 +110,7 @@ public class CustomerAddressService {
             address.setActive(request.active());
 
         address = addressRepository.save(address);
+        keepSingleDefault(address);
         log.info("Dirección actualizada - id: {}", address.getId());
         return CustomerAddressResponse.fromEntity(address);
     }
@@ -151,6 +153,17 @@ public class CustomerAddressService {
                     log.warn("Cliente no encontrado con ID: {}", id);
                     return new ResourceNotFoundException("Cliente no encontrado con ID: " + id);
                 });
+    }
+
+    // Un cliente tiene una sola dirección principal: marcar una desmarca las demás
+    private void keepSingleDefault(CustomerAddress address) {
+        if (!Boolean.TRUE.equals(address.getIsDefault())) {
+            return;
+        }
+        int unset = addressRepository.unsetOtherDefaults(address.getCustomer().getId(), address.getId());
+        if (unset > 0) {
+            log.info("Dirección {} es la nueva principal; se desmarcaron {} direcciones", address.getId(), unset);
+        }
     }
 
     private static String blankToNull(String value) {
