@@ -61,7 +61,7 @@ public class CustomerAddressService {
                 .description(request.description())
                 .latitude(request.latitude())
                 .longitude(request.longitude())
-                .mapUrl(request.mapUrl())
+                .mapUrl(blankToNull(request.mapUrl()))
                 .isDefault(request.isDefault() != null ? request.isDefault() : false)
                 .active(true)
                 .build();
@@ -102,7 +102,7 @@ public class CustomerAddressService {
         if (request.longitude() != null)
             address.setLongitude(request.longitude());
         if (request.mapUrl() != null)
-            address.setMapUrl(request.mapUrl());
+            address.setMapUrl(blankToNull(request.mapUrl()));
         if (request.isDefault() != null)
             address.setIsDefault(request.isDefault());
         if (request.active() != null)
@@ -151,5 +151,9 @@ public class CustomerAddressService {
                     log.warn("Cliente no encontrado con ID: {}", id);
                     return new ResourceNotFoundException("Cliente no encontrado con ID: " + id);
                 });
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

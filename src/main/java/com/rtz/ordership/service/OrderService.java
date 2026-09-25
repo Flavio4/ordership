@@ -296,6 +296,10 @@ public class OrderService {
             order.setConfirmedAt(Instant.now());
         }
 
+        if (newStatus == OrderStatus.CANCELLED) {
+            restoreStock(order);
+        }
+
         order.setStatus(newStatus);
         order = orderRepository.save(order);
         log.info("Pedido ID: {} cambió de {} → {}", id, currentStatus, newStatus);
@@ -346,17 +350,20 @@ public class OrderService {
             throw new IllegalStateException("No se puede cancelar un pedido en estado: " + order.getStatus());
         }
 
-        // Devolver stock
+        restoreStock(order);
+
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        log.info("Pedido cancelado - id: {}", id);
+    }
+
+    private void restoreStock(Order order) {
         for (OrderItem item : order.getItems()) {
             Product product = item.getProduct();
             product.setStock(product.getStock() + item.getQuantity());
             productRepository.save(product);
             log.info("Stock devuelto: {} +{} unidades", product.getName(), item.getQuantity());
         }
-
-        order.setStatus(OrderStatus.CANCELLED);
-        orderRepository.save(order);
-        log.info("Pedido cancelado - id: {}", id);
     }
 
     // ── Helper ──────────────────────────────────────────────────────────────

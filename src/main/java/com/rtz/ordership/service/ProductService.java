@@ -118,6 +118,21 @@ public class ProductService {
         return ProductResponse.fromEntity(product);
     }
 
+    // Suma o resta sobre el valor actual de la base: no pisa ventas de Shopify entradas mientras se editaba
+    @Transactional
+    public ProductResponse adjustStock(UUID id, int delta) {
+        log.info("Ajustando stock del producto ID: {} en {}", id, delta);
+        if (delta == 0) {
+            throw new IllegalArgumentException("La cantidad a ajustar no puede ser 0");
+        }
+        if (productRepository.adjustStock(id, delta) == 0) {
+            throw new ResourceNotFoundException("Producto no encontrado con ID: " + id);
+        }
+        Product product = findProductOrThrow(id);
+        log.info("Stock ajustado - id: {}, nombre: {}, stock: {}", product.getId(), product.getName(), product.getStock());
+        return ProductResponse.fromEntity(product);
+    }
+
     @Transactional
     public void deactivateProduct(UUID id) {
         log.info("Desactivando producto ID: {}", id);

@@ -39,7 +39,7 @@ public class CustomerAddress {
 
     private Double longitude;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String mapUrl;
 
     @Builder.Default

@@ -1,6 +1,5 @@
 package com.rtz.ordership.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
@@ -20,7 +19,7 @@ public record CustomerAddressRequest(
 
                 Double longitude,
 
-                @NotBlank(message = "El link del mapa es obligatorio") String mapUrl,
+                String mapUrl,
 
                 Boolean isDefault) {
 }

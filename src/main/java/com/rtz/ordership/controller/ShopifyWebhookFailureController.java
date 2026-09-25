@@ -7,12 +7,15 @@ import com.rtz.ordership.service.ShopifyWebhookFailureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 // Fuera de /api/webhooks/shopify a propósito: esa ruta acepta POST sin autenticación.
@@ -33,9 +36,10 @@ public class ShopifyWebhookFailureController {
             description = "Pedidos de Shopify que no se crearon por datos incompletos (sin teléfono, ítem sin SKU, "
                     + "moneda no soportada), del más reciente al más antiguo. Incluye el payload original "
                     + "para cargar el pedido a mano. Por defecto solo los pendientes; resolved=true para ver los resueltos")
-    public ResponseEntity<List<ShopifyWebhookFailureResponse>> getFailures(
-            @RequestParam(defaultValue = "false") boolean resolved) {
-        return ResponseEntity.ok(failureService.getFailures(resolved));
+    public ResponseEntity<Page<ShopifyWebhookFailureResponse>> getFailures(
+            @RequestParam(defaultValue = "false") boolean resolved,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(failureService.getFailures(resolved, pageable));
     }
 
     @PatchMapping("/{id}/resolve")

@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record OrderItemResponse(
         UUID id,
+        UUID productId,
         String productName,
         Integer quantity,
         BigDecimal unitPrice,
@@ -14,6 +15,7 @@ public record OrderItemResponse(
     public static OrderItemResponse fromEntity(OrderItem item) {
         return new OrderItemResponse(
                 item.getId(),
+                item.getProduct().getId(),
                 item.getProduct().getName(),
                 item.getQuantity(),
                 item.getUnitPrice(),

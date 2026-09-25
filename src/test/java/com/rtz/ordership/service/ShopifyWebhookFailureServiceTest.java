@@ -8,6 +8,9 @@ import com.rtz.ordership.repository.ShopifyWebhookFailureRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.util.List;
@@ -73,18 +76,18 @@ class ShopifyWebhookFailureServiceTest {
                 .payload(PAYLOAD)
                 .reason("Sin teléfono")
                 .build();
-        when(failureRepository.findByResolvedAtIsNullOrderByCreatedAtDesc()).thenReturn(List.of(failure));
+        when(failureRepository.findByResolvedAtIsNull(any())).thenReturn(new PageImpl<>(List.of(failure)));
 
-        List<ShopifyWebhookFailureResponse> failures = service.getFailures(false);
+        Page<ShopifyWebhookFailureResponse> failures = service.getFailures(false, PageRequest.of(0, 20));
 
-        assertThat(failures).singleElement().satisfies(f -> {
+        assertThat(failures.getContent()).singleElement().satisfies(f -> {
             assertThat(f.shopifyOrderId()).isEqualTo("555");
             assertThat(f.reason()).isEqualTo("Sin teléfono");
             assertThat(f.payload()).isEqualTo(PAYLOAD);
             assertThat(f.attempts()).isEqualTo(1);
             assertThat(f.resolvedAt()).isNull();
         });
-        verify(failureRepository, never()).findByResolvedAtIsNotNullOrderByCreatedAtDesc();
+        verify(failureRepository, never()).findByResolvedAtIsNotNull(any());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.rtz.ordership.controller;
 
 import com.rtz.ordership.dto.request.ProductRequest;
 import com.rtz.ordership.dto.request.ProductUpdateRequest;
+import com.rtz.ordership.dto.request.StockAdjustmentRequest;
 import com.rtz.ordership.dto.response.ProductResponse;
 import com.rtz.ordership.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,6 +62,15 @@ public class ProductController {
     public ResponseEntity<ProductResponse> updateProduct(@PathVariable UUID id,
             @RequestBody ProductUpdateRequest request) {
         return ResponseEntity.ok(productService.updateProduct(id, request));
+    }
+
+    @PatchMapping("/{id}/stock")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Ajustar stock", description = "Suma (delta positivo) o resta (delta negativo) unidades al stock actual. "
+            + "Usar esto en lugar de enviar stock en el PUT, que reemplaza el valor y puede pisar ventas recientes")
+    public ResponseEntity<ProductResponse> adjustStock(@PathVariable UUID id,
+            @Valid @RequestBody StockAdjustmentRequest request) {
+        return ResponseEntity.ok(productService.adjustStock(id, request.delta()));
     }
 
     @DeleteMapping("/{id}")

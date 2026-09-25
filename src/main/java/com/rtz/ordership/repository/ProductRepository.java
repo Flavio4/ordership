@@ -4,6 +4,7 @@ import com.rtz.ordership.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -27,6 +28,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("needsReview") Boolean needsReview,
             @Param("textLike") String textLike,
             Pageable pageable);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE Product p SET p.stock = p.stock + :delta WHERE p.id = :id")
+    int adjustStock(@Param("id") UUID id, @Param("delta") int delta);
 
     boolean existsByName(String name);
 

@@ -1,9 +1,10 @@
 package com.rtz.ordership.repository;
 
 import com.rtz.ordership.entity.ShopifyWebhookFailure;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,7 +12,7 @@ public interface ShopifyWebhookFailureRepository extends JpaRepository<ShopifyWe
 
     Optional<ShopifyWebhookFailure> findByShopifyOrderId(String shopifyOrderId);
 
-    List<ShopifyWebhookFailure> findByResolvedAtIsNullOrderByCreatedAtDesc();
+    Page<ShopifyWebhookFailure> findByResolvedAtIsNull(Pageable pageable);
 
-    List<ShopifyWebhookFailure> findByResolvedAtIsNotNullOrderByCreatedAtDesc();
+    Page<ShopifyWebhookFailure> findByResolvedAtIsNotNull(Pageable pageable);
 }

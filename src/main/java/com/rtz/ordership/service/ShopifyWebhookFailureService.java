@@ -6,11 +6,12 @@ import com.rtz.ordership.entity.User;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.ShopifyWebhookFailureRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -51,13 +52,11 @@ public class ShopifyWebhookFailureService {
     }
 
     @Transactional(readOnly = true)
-    public List<ShopifyWebhookFailureResponse> getFailures(boolean resolved) {
-        List<ShopifyWebhookFailure> failures = resolved
-                ? failureRepository.findByResolvedAtIsNotNullOrderByCreatedAtDesc()
-                : failureRepository.findByResolvedAtIsNullOrderByCreatedAtDesc();
-        return failures.stream()
-                .map(ShopifyWebhookFailureResponse::fromEntity)
-                .toList();
+    public Page<ShopifyWebhookFailureResponse> getFailures(boolean resolved, Pageable pageable) {
+        Page<ShopifyWebhookFailure> failures = resolved
+                ? failureRepository.findByResolvedAtIsNotNull(pageable)
+                : failureRepository.findByResolvedAtIsNull(pageable);
+        return failures.map(ShopifyWebhookFailureResponse::fromEntity);
     }
 
     @Transactional
