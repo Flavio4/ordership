@@ -38,6 +38,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                    OR LOWER(o.shopify.orderName) LIKE :textLike
                    OR (:phoneLike IS NOT NULL AND o.customer.phone LIKE :phoneLike)
                    OR (:orderNumber IS NOT NULL AND o.orderNumber = :orderNumber))
+              AND (:scheduled = false
+                   OR (o.deliveryDate IS NOT NULL
+                       AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
+                       AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED))
             """)
     Page<Order> search(@Param("customerId") UUID customerId,
             @Param("status") OrderStatus status,
@@ -46,7 +50,25 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("textLike") String textLike,
             @Param("phoneLike") String phoneLike,
             @Param("orderNumber") Long orderNumber,
+            @Param("scheduled") boolean scheduled,
             Pageable pageable);
+
+    // Agenda: pedidos programados que todavía no se entregaron ni cancelaron
+    @Query("""
+            SELECT COUNT(o) FROM Order o
+            WHERE o.deliveryDate < :date
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            """)
+    long countScheduledBefore(@Param("date") LocalDate date);
+
+    @Query("""
+            SELECT COUNT(o) FROM Order o
+            WHERE o.deliveryDate = :date
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            """)
+    long countScheduledOn(@Param("date") LocalDate date);
 
     // Dashboard queries
     long countByStatusAndCreatedAtBetween(OrderStatus status, Instant from, Instant to);

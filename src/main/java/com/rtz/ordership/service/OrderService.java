@@ -19,6 +19,7 @@ import com.rtz.ordership.dto.request.OrderItemRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
+import com.rtz.ordership.dto.response.AgendaSummaryResponse;
 import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.dto.webhook.ShopifyOrderDetails;
 import com.rtz.ordership.entity.Customer;
@@ -78,13 +79,13 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
-            UUID customerId, OrderSource source, String query, Pageable pageable) {
-        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {}",
-                status, deliveryDate, customerId, source, query);
+            UUID customerId, OrderSource source, String query, boolean scheduled, Pageable pageable) {
+        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {} | agenda: {}",
+                status, deliveryDate, customerId, source, query, scheduled);
 
         Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source,
                 SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query),
-                SearchPatterns.orderNumber(query), pageable);
+                SearchPatterns.orderNumber(query), scheduled, pageable);
 
         Page<OrderResponse> result = page.map(OrderResponse::fromEntity);
         log.info("Se encontraron {} pedidos en la página (Total: {})",
@@ -350,6 +351,26 @@ public class OrderService {
         order = orderRepository.save(order);
         log.info("Pedido ID: {} - dirección asignada: {}", id, address.getId());
         return OrderResponse.fromEntity(order);
+    }
+
+    // ── Fecha de entrega (agenda) ───────────────────────────────────────────
+
+    @Transactional
+    public OrderResponse updateDeliveryDate(UUID id, LocalDate deliveryDate) {
+        log.info("Programando entrega del pedido ID: {} para {}", id, deliveryDate);
+        Order order = findOrderOrThrow(id);
+        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("No se puede programar la entrega de un pedido " + order.getStatus());
+        }
+        order.setDeliveryDate(deliveryDate);
+        return OrderResponse.fromEntity(orderRepository.save(order));
+    }
+
+    @Transactional(readOnly = true)
+    public AgendaSummaryResponse getAgendaSummary(LocalDate today) {
+        return new AgendaSummaryResponse(
+                orderRepository.countScheduledBefore(today),
+                orderRepository.countScheduledOn(today));
     }
 
     // ── Cancelar pedido + devolver stock ─────────────────────────────────────

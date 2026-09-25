@@ -3,10 +3,12 @@ package com.rtz.ordership.controller;
 import com.rtz.ordership.dto.request.DeliveryAssignmentRequest;
 import com.rtz.ordership.dto.request.DeliveryStatusUpdateRequest;
 import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
+import com.rtz.ordership.dto.request.OrderDeliveryDateRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
+import com.rtz.ordership.dto.response.AgendaSummaryResponse;
 import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
@@ -44,15 +46,34 @@ public class OrderController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
     @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega, cliente y origen (MANUAL/SHOPIFY). "
-            + "query busca por nombre del cliente, número de Shopify (#1488) o teléfono (desde 6 dígitos)")
+            + "query busca por nombre del cliente, número propio (P-1024), número de Shopify (#1488) o teléfono (desde 6 dígitos). "
+            + "scheduled=true: agenda, solo los que tienen fecha de entrega y todavía no se entregaron ni cancelaron")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
             @RequestParam(required = false) UUID customerId,
             @RequestParam(required = false) OrderSource source,
             @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "false") boolean scheduled,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, pageable));
+        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, scheduled, pageable));
+    }
+
+    @GetMapping("/agenda-summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Resumen de la agenda", description = "Cuántos pedidos programados están atrasados y cuántos son para hoy. "
+            + "today lo manda la app (fecha del celular) para no depender de la zona horaria del servidor")
+    public ResponseEntity<AgendaSummaryResponse> getAgendaSummary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today) {
+        return ResponseEntity.ok(orderService.getAgendaSummary(today));
+    }
+
+    @PatchMapping("/{id}/delivery-date")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Programar entrega", description = "Fecha en que el cliente quiere recibir el pedido; null la quita")
+    public ResponseEntity<OrderResponse> updateDeliveryDate(@PathVariable UUID id,
+            @RequestBody OrderDeliveryDateRequest request) {
+        return ResponseEntity.ok(orderService.updateDeliveryDate(id, request.deliveryDate()));
     }
 
     @GetMapping("/{id}")

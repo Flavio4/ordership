@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -95,6 +96,25 @@ class OrderServiceCancelTest {
 
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(delivery.getFailureReason()).isEqualTo("Pedido cancelado");
+    }
+
+    @Test
+    void deliveryDateCanBeScheduledAndClearedWhileTheOrderIsOpen() {
+        Order order = order(OrderStatus.CONFIRMED, product(5), 1);
+
+        orderService.updateDeliveryDate(order.getId(), LocalDate.of(2026, 10, 3));
+        assertThat(order.getDeliveryDate()).isEqualTo(LocalDate.of(2026, 10, 3));
+
+        orderService.updateDeliveryDate(order.getId(), null);
+        assertThat(order.getDeliveryDate()).isNull();
+    }
+
+    @Test
+    void deliveredOrderCannotBeRescheduled() {
+        Order order = order(OrderStatus.DELIVERED, product(5), 1);
+
+        assertThatThrownBy(() -> orderService.updateDeliveryDate(order.getId(), LocalDate.of(2026, 10, 3)))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
