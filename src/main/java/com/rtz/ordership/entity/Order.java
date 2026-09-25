@@ -67,15 +67,9 @@ public class Order {
 
     private Instant confirmedAt;
 
-    @Column(unique = true)
-    private String shopifyOrderId;
-
-    // Número que ve la tienda en Shopify (ej. "#1488")
-    private String shopifyOrderName;
-
-    // Link al pedido en Shopify Admin, donde está el desglose (descuentos, extras, envío)
-    @Column(columnDefinition = "TEXT")
-    private String shopifyAdminUrl;
+    // Solo en pedidos que vienen de Shopify; null en los manuales
+    @Embedded
+    private ShopifyReference shopify;
 
     @Column(columnDefinition = "TEXT")
     private String shippingAddressRaw;

@@ -20,9 +20,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     Page<Order> findAll(Pageable pageable);
 
-    boolean existsByShopifyOrderId(String shopifyOrderId);
+    // Shopify_OrderId = order.shopify.orderId (campo del objeto embebido ShopifyReference)
+    boolean existsByShopify_OrderId(String shopifyOrderId);
 
-    Optional<Order> findByShopifyOrderId(String shopifyOrderId);
+    Optional<Order> findByShopify_OrderId(String shopifyOrderId);
 
     Page<Order> findByCustomerId(UUID customerId, Pageable pageable);
 

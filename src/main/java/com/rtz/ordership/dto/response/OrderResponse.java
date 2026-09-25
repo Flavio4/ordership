@@ -62,8 +62,8 @@ public record OrderResponse(
                                 order.getTrackingCode(),
                                 order.getTotalAmount(),
                                 order.getAmountToCollect(),
-                                order.getShopifyOrderName(),
-                                order.getShopifyAdminUrl(),
+                                order.getShopify() != null ? order.getShopify().getOrderName() : null,
+                                order.getShopify() != null ? order.getShopify().getAdminUrl() : null,
                                 order.getNotes(),
                                 order.getDeliveryDate(),
                                 order.getItems().stream()

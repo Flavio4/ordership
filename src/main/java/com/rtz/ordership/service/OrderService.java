@@ -166,9 +166,9 @@ public class OrderService {
             List<OrderItemRequest> items) {
 
         String shopifyOrderId = shopify.shopifyOrderId();
-        if (orderRepository.existsByShopifyOrderId(shopifyOrderId)) {
+        if (orderRepository.existsByShopify_OrderId(shopifyOrderId)) {
             log.info("Pedido de Shopify {} ya fue procesado, se ignora", shopifyOrderId);
-            return OrderResponse.fromEntity(orderRepository.findByShopifyOrderId(shopifyOrderId).orElseThrow());
+            return OrderResponse.fromEntity(orderRepository.findByShopify_OrderId(shopifyOrderId).orElseThrow());
         }
 
         Order order = Order.builder()
@@ -178,9 +178,11 @@ public class OrderService {
                 .status(OrderStatus.PENDING)
                 .source(OrderSource.SHOPIFY)
                 .shippingMethod(ShippingMethod.OWN_DELIVERY)
-                .shopifyOrderId(shopifyOrderId)
-                .shopifyOrderName(shopify.orderName())
-                .shopifyAdminUrl(shopify.adminUrl())
+                .shopify(ShopifyReference.builder()
+                        .orderId(shopifyOrderId)
+                        .orderName(shopify.orderName())
+                        .adminUrl(shopify.adminUrl())
+                        .build())
                 .shippingAddressRaw(shopify.shippingAddressRaw())
                 .totalAmount(BigDecimal.ZERO)
                 .amountToCollect(BigDecimal.ZERO)

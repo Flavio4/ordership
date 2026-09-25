@@ -67,6 +67,8 @@ class OrderServiceShopifyTest {
         verify(orderRepository).save(saved.capture());
         assertThat(saved.getValue().getTotalAmount()).isEqualByComparingTo("300000");
         assertThat(saved.getValue().getAmountToCollect()).isEqualByComparingTo("255000");
+        assertThat(saved.getValue().getShopify().getOrderId()).isEqualTo("557");
+        assertThat(saved.getValue().getShopify().getOrderName()).isEqualTo("#1557");
     }
 
     @Test
