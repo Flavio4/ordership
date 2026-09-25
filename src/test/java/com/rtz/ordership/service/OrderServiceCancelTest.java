@@ -110,6 +110,16 @@ class OrderServiceCancelTest {
     }
 
     @Test
+    void pendingOrderGetsItsDateWhenConfirmed() {
+        Order order = order(OrderStatus.PENDING, product(5), 1);
+
+        assertThatThrownBy(() -> orderService.updateDeliveryDate(order.getId(), LocalDate.of(2026, 10, 3)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Confirmá el pedido");
+        assertThat(order.getDeliveryDate()).isNull();
+    }
+
+    @Test
     void deliveredOrderCannotBeRescheduled() {
         Order order = order(OrderStatus.DELIVERED, product(5), 1);
 

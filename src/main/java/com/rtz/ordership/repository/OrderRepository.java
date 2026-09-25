@@ -40,8 +40,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                    OR (:orderNumber IS NOT NULL AND o.orderNumber = :orderNumber))
               AND (:scheduled = false
                    OR (o.deliveryDate IS NOT NULL
-                       AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
-                       AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED))
+                       AND o.status IN (com.rtz.ordership.entity.enums.OrderStatus.CONFIRMED,
+                                        com.rtz.ordership.entity.enums.OrderStatus.ASSIGNED,
+                                        com.rtz.ordership.entity.enums.OrderStatus.IN_TRANSIT)))
             """)
     Page<Order> search(@Param("customerId") UUID customerId,
             @Param("status") OrderStatus status,
@@ -53,13 +54,14 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("scheduled") boolean scheduled,
             Pageable pageable);
 
-    // Agenda: pedidos programados que todavía no se entregaron ni cancelaron
+    // Agenda: pedidos confirmados (o ya en reparto) con fecha de entrega, todavía sin entregar
     @Query("""
             SELECT COUNT(o) FROM Order o
             WHERE o.deliveryDate < :date
               AND (:source IS NULL OR o.source = :source)
-              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
-              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+              AND o.status IN (com.rtz.ordership.entity.enums.OrderStatus.CONFIRMED,
+                               com.rtz.ordership.entity.enums.OrderStatus.ASSIGNED,
+                               com.rtz.ordership.entity.enums.OrderStatus.IN_TRANSIT)
             """)
     long countScheduledBefore(@Param("date") LocalDate date, @Param("source") OrderSource source);
 
@@ -67,8 +69,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             SELECT COUNT(o) FROM Order o
             WHERE o.deliveryDate = :date
               AND (:source IS NULL OR o.source = :source)
-              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
-              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+              AND o.status IN (com.rtz.ordership.entity.enums.OrderStatus.CONFIRMED,
+                               com.rtz.ordership.entity.enums.OrderStatus.ASSIGNED,
+                               com.rtz.ordership.entity.enums.OrderStatus.IN_TRANSIT)
             """)
     long countScheduledOn(@Param("date") LocalDate date, @Param("source") OrderSource source);
 

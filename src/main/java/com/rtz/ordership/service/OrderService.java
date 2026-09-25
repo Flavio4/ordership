@@ -359,6 +359,9 @@ public class OrderService {
     public OrderResponse updateDeliveryDate(UUID id, LocalDate deliveryDate) {
         log.info("Programando entrega del pedido ID: {} para {}", id, deliveryDate);
         Order order = findOrderOrThrow(id);
+        if (order.getStatus() == OrderStatus.PENDING) {
+            throw new IllegalStateException("Confirmá el pedido antes de programar la entrega");
+        }
         if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new IllegalStateException("No se puede programar la entrega de un pedido " + order.getStatus());
         }
