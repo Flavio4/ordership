@@ -70,11 +70,24 @@ public class Order {
     @Column(unique = true)
     private String shopifyOrderId;
 
+    // Número que ve la tienda en Shopify (ej. "#1488")
+    private String shopifyOrderName;
+
+    // Link al pedido en Shopify Admin, donde está el desglose (descuentos, extras, envío)
+    @Column(columnDefinition = "TEXT")
+    private String shopifyAdminUrl;
+
     @Column(columnDefinition = "TEXT")
     private String shippingAddressRaw;
 
+    // Suma de los ítems con los precios del catálogo de OrderShip
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
+
+    // Lo que el cliente debe pagar. En pedidos de Shopify es el total de Shopify (con ofertas y extras);
+    // en pedidos manuales, igual a totalAmount
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal amountToCollect;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

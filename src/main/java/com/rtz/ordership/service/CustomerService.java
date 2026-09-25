@@ -9,6 +9,7 @@ import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerRepository;
+import com.rtz.ordership.util.PhoneNumbers;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,16 +63,17 @@ public class CustomerService {
 
     @Transactional
     public CustomerResponse createCustomer(CustomerRequest request) {
-        log.info("Creando cliente: {} ({})", request.fullName(), request.phone());
+        String phone = PhoneNumbers.normalize(request.phone());
+        log.info("Creando cliente: {} ({})", request.fullName(), phone);
 
-        if (customerRepository.existsByPhone(request.phone())) {
-            log.warn("Teléfono duplicado al crear cliente: {}", request.phone());
-            throw new DuplicateResourceException("Ya existe un cliente con el teléfono: " + request.phone());
+        if (customerRepository.existsByPhone(phone)) {
+            log.warn("Teléfono duplicado al crear cliente: {}", phone);
+            throw new DuplicateResourceException("Ya existe un cliente con el teléfono: " + phone);
         }
 
         Customer customer = Customer.builder()
                 .fullName(request.fullName())
-                .phone(request.phone())
+                .phone(phone)
                 .email(request.email())
                 .notes(request.notes())
                 .active(true)
@@ -102,11 +104,12 @@ public class CustomerService {
         Customer customer = findCustomerOrThrow(id);
 
         if (request.phone() != null) {
-            if (!request.phone().equals(customer.getPhone()) && customerRepository.existsByPhone(request.phone())) {
-                log.warn("Teléfono duplicado al actualizar cliente: {}", request.phone());
-                throw new DuplicateResourceException("Ya existe un cliente con el teléfono: " + request.phone());
+            String phone = PhoneNumbers.normalize(request.phone());
+            if (!phone.equals(customer.getPhone()) && customerRepository.existsByPhone(phone)) {
+                log.warn("Teléfono duplicado al actualizar cliente: {}", phone);
+                throw new DuplicateResourceException("Ya existe un cliente con el teléfono: " + phone);
             }
-            customer.setPhone(request.phone());
+            customer.setPhone(phone);
         }
 
         if (request.fullName() != null)

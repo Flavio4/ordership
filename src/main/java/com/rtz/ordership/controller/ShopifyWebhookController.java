@@ -37,7 +37,8 @@ public class ShopifyWebhookController {
     @PostMapping("/orders")
     public ResponseEntity<Void> handleOrderCreated(
             @RequestBody byte[] rawBody,
-            @RequestHeader(value = "X-Shopify-Hmac-Sha256", required = false) String hmacHeader) {
+            @RequestHeader(value = "X-Shopify-Hmac-Sha256", required = false) String hmacHeader,
+            @RequestHeader(value = "X-Shopify-Shop-Domain", required = false) String shopDomain) {
 
         if (webhookSecret == null || webhookSecret.isBlank()) {
             if (!allowUnsignedWebhooks) {
@@ -52,7 +53,7 @@ public class ShopifyWebhookController {
 
         // Si el pedido no se puede crear por datos incompletos, queda guardado como fallo y se responde 200 igual;
         // solo un error técnico devuelve 500 para que Shopify reintente.
-        shopifyWebhookService.receiveOrderCreated(new String(rawBody, StandardCharsets.UTF_8));
+        shopifyWebhookService.receiveOrderCreated(new String(rawBody, StandardCharsets.UTF_8), shopDomain);
         return ResponseEntity.ok().build();
     }
 

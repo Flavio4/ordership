@@ -6,6 +6,7 @@ import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
 import com.rtz.ordership.dto.response.OrderResponse;
+import com.rtz.ordership.dto.webhook.ShopifyOrderDetails;
 import com.rtz.ordership.entity.*;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
@@ -138,12 +139,14 @@ public class OrderService {
                 .notes(request.notes())
                 .deliveryDate(request.deliveryDate())
                 .totalAmount(BigDecimal.ZERO) // se calcula abajo
+                .amountToCollect(BigDecimal.ZERO)
                 .build();
 
         List<OrderItem> orderItems = buildOrderItems(order, request.items(), true);
         BigDecimal totalAmount = sumSubtotals(orderItems);
 
         order.setTotalAmount(totalAmount);
+        order.setAmountToCollect(totalAmount);
         order.getItems().addAll(orderItems);
 
         Order saved = orderRepository.save(order);
@@ -154,10 +157,15 @@ public class OrderService {
 
     // ── Crear pedido a partir de un webhook de Shopify ──────────────────────
 
+    /**
+     * Si {@code shopify.amountToCollect()} es null (no vino el total de Shopify), se cobra el total calculado
+     * con los precios del catálogo.
+     */
     @Transactional
-    public OrderResponse createOrderFromShopify(Customer customer, String shippingAddressRaw,
-            String shopifyOrderId, LocalDate deliveryDate, List<OrderItemRequest> items) {
+    public OrderResponse createOrderFromShopify(Customer customer, ShopifyOrderDetails shopify,
+            List<OrderItemRequest> items) {
 
+        String shopifyOrderId = shopify.shopifyOrderId();
         if (orderRepository.existsByShopifyOrderId(shopifyOrderId)) {
             log.info("Pedido de Shopify {} ya fue procesado, se ignora", shopifyOrderId);
             return OrderResponse.fromEntity(orderRepository.findByShopifyOrderId(shopifyOrderId).orElseThrow());
@@ -171,9 +179,11 @@ public class OrderService {
                 .source(OrderSource.SHOPIFY)
                 .shippingMethod(ShippingMethod.OWN_DELIVERY)
                 .shopifyOrderId(shopifyOrderId)
-                .shippingAddressRaw(shippingAddressRaw)
-                .deliveryDate(deliveryDate)
+                .shopifyOrderName(shopify.orderName())
+                .shopifyAdminUrl(shopify.adminUrl())
+                .shippingAddressRaw(shopify.shippingAddressRaw())
                 .totalAmount(BigDecimal.ZERO)
+                .amountToCollect(BigDecimal.ZERO)
                 .build();
 
         // La venta ya ocurrió en Shopify (el cliente pagó): no se rechaza por stock ni por producto desactivado
@@ -181,11 +191,14 @@ public class OrderService {
         BigDecimal totalAmount = sumSubtotals(orderItems);
 
         order.setTotalAmount(totalAmount);
+        order.setAmountToCollect(shopify.amountToCollect() != null ? shopify.amountToCollect() : totalAmount);
         order.getItems().addAll(orderItems);
 
         Order saved = orderRepository.save(order);
-        log.info("Pedido Shopify creado - id: {}, shopifyOrderId: {}, cliente: {}, total: {}, ítems: {}",
-                saved.getId(), shopifyOrderId, customer.getFullName(), totalAmount, orderItems.size());
+        log.info("Pedido Shopify creado - id: {}, pedido Shopify: {} ({}), cliente: {}, a cobrar: {}, "
+                        + "total catálogo: {}, ítems: {}",
+                saved.getId(), shopify.orderName(), shopifyOrderId, customer.getFullName(),
+                saved.getAmountToCollect(), totalAmount, orderItems.size());
         return OrderResponse.fromEntity(saved);
     }
 

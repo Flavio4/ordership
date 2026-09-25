@@ -53,9 +53,9 @@ public class DashboardService {
                 }
 
                 // Revenue
-                BigDecimal revenueToday = orderRepository.sumTotalAmountByCreatedAtBetween(startOfDay, endOfDay,
+                BigDecimal revenueToday = orderRepository.sumAmountToCollectByCreatedAtBetween(startOfDay, endOfDay,
                                 OrderStatus.CANCELLED);
-                BigDecimal revenueWeek = orderRepository.sumTotalAmountByCreatedAtBetween(startOfWeekInstant, endOfDay,
+                BigDecimal revenueWeek = orderRepository.sumAmountToCollectByCreatedAtBetween(startOfWeekInstant, endOfDay,
                                 OrderStatus.CANCELLED);
 
                 // Contadores globales

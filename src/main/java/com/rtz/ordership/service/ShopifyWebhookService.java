@@ -2,8 +2,10 @@ package com.rtz.ordership.service;
 
 import tools.jackson.databind.ObjectMapper;
 import com.rtz.ordership.dto.request.OrderItemRequest;
+import com.rtz.ordership.dto.webhook.ShopifyOrderDetails;
 import com.rtz.ordership.dto.webhook.ShopifyOrderWebhookPayload;
 import com.rtz.ordership.dto.webhook.ShopifyOrderWebhookPayload.ShopifyAddress;
+import com.rtz.ordership.dto.webhook.ShopifyOrderWebhookPayload.NoteAttribute;
 import com.rtz.ordership.dto.webhook.ShopifyOrderWebhookPayload.ShopifyLineItem;
 import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.entity.Product;
@@ -12,14 +14,22 @@ import com.rtz.ordership.entity.enums.Unit;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerRepository;
 import com.rtz.ordership.repository.ProductRepository;
+import com.rtz.ordership.util.PhoneNumbers;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Crea pedidos a partir de los webhooks de Shopify. La venta ya ocurrió (el cliente pagó), así que el pedido
@@ -34,30 +44,43 @@ import java.util.stream.Collectors;
 @Service
 public class ShopifyWebhookService {
 
+    private static final Pattern SHOP_DOMAIN = Pattern.compile("[a-z0-9][a-z0-9-]*\\.myshopify\\.com");
+
     private final OrderService orderService;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final ShopifyWebhookFailureService failureService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    // Ítems que no son productos (ej. el extra "Envio Prioritario y Garantia Extendida" del formulario):
+    // no se crean en el catálogo ni mueven stock. Su importe igual queda en amountToCollect (total de Shopify)
+    private final Set<String> ignoredLineItems;
 
     public ShopifyWebhookService(OrderService orderService,
             CustomerRepository customerRepository,
             ProductRepository productRepository,
             ShopifyWebhookFailureService failureService,
             ObjectMapper objectMapper,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate,
+            @Value("${app.shopify.ignored-line-items:}") List<String> ignoredLineItems) {
         this.orderService = orderService;
         this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.failureService = failureService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.ignoredLineItems = ignoredLineItems.stream()
+                .filter(this::notBlank)
+                .map(this::normalizeKey)
+                .collect(Collectors.toSet());
     }
 
-    public void receiveOrderCreated(String rawBody) {
+    /**
+     * @param shopDomain header X-Shopify-Shop-Domain (ej. "mitienda.myshopify.com"), para armar el link al pedido
+     */
+    public void receiveOrderCreated(String rawBody, String shopDomain) {
         try {
-            createOrder(rawBody);
+            createOrder(rawBody, shopDomain);
         } catch (RuntimeException e) {
             if (!isDataError(e)) {
                 throw e;
@@ -68,8 +91,8 @@ public class ShopifyWebhookService {
 
     // La creación corre en su propia transacción: si falla se revierte entera (sin clientes a medias)
     // y el fallo se registra después, fuera de ella.
-    private void createOrder(String rawBody) {
-        transactionTemplate.executeWithoutResult(status -> processOrderCreated(rawBody));
+    private void createOrder(String rawBody, String shopDomain) {
+        transactionTemplate.executeWithoutResult(status -> processOrderCreated(rawBody, shopDomain));
     }
 
     private boolean isDataError(RuntimeException e) {
@@ -87,12 +110,14 @@ public class ShopifyWebhookService {
         }
     }
 
-    private void processOrderCreated(String rawBody) {
+    private void processOrderCreated(String rawBody, String shopDomain) {
         ShopifyOrderWebhookPayload payload = parsePayload(rawBody);
         String shopifyOrderId = String.valueOf(payload.id());
         log.info("Procesando webhook de Shopify - pedido: {}", shopifyOrderId);
 
-        String phone = resolvePhone(payload);
+        Map<String, String> formFields = formFields(payload);
+
+        String phone = PhoneNumbers.normalize(resolvePhone(payload, formFields));
         if (phone == null || phone.isBlank()) {
             throw new IllegalStateException(
                     "El pedido de Shopify " + shopifyOrderId + " no trae un teléfono de contacto");
@@ -100,15 +125,32 @@ public class ShopifyWebhookService {
 
         Customer customer = customerRepository.findByPhone(phone)
                 .orElseGet(() -> customerRepository.save(Customer.builder()
-                        .fullName(resolveCustomerName(payload))
+                        .fullName(resolveCustomerName(payload, formFields))
                         .phone(phone)
                         .email(resolveEmail(payload))
                         .build()));
 
         List<OrderItemRequest> items = resolveItems(payload, shopifyOrderId);
-        String shippingAddressRaw = resolveShippingAddress(payload.shippingAddress());
+        ShopifyOrderDetails details = new ShopifyOrderDetails(
+                shopifyOrderId,
+                payload.name(),
+                adminUrl(shopDomain, shopifyOrderId),
+                resolveShippingAddress(payload.shippingAddress(), formFields),
+                payload.totalPrice());
 
-        orderService.createOrderFromShopify(customer, shippingAddressRaw, shopifyOrderId, null, items);
+        orderService.createOrderFromShopify(customer, details, items);
+    }
+
+    /**
+     * Link al pedido en Shopify Admin: https://admin.shopify.com/store/{tienda}/orders/{id}.
+     * El header del dominio no está cubierto por la firma HMAC, así que solo se acepta un dominio *.myshopify.com.
+     */
+    private String adminUrl(String shopDomain, String shopifyOrderId) {
+        if (shopDomain == null || !SHOP_DOMAIN.matcher(shopDomain.trim()).matches()) {
+            return null;
+        }
+        String store = shopDomain.trim().substring(0, shopDomain.trim().indexOf(".myshopify.com"));
+        return "https://admin.shopify.com/store/" + store + "/orders/" + shopifyOrderId;
     }
 
     private ShopifyOrderWebhookPayload parsePayload(String rawBody) {
@@ -125,9 +167,25 @@ public class ShopifyWebhookService {
         }
 
         Currency currency = resolveCurrency(payload.currency(), shopifyOrderId);
-        return payload.lineItems().stream()
+        List<OrderItemRequest> items = payload.lineItems().stream()
+                .filter(li -> !isIgnored(li, shopifyOrderId))
                 .map(li -> resolveItem(li, currency, shopifyOrderId))
                 .collect(Collectors.toList());
+
+        if (items.isEmpty()) {
+            throw new IllegalStateException("El pedido de Shopify " + shopifyOrderId
+                    + " no tiene productos (solo extras ignorados)");
+        }
+        return items;
+    }
+
+    private boolean isIgnored(ShopifyLineItem lineItem, String shopifyOrderId) {
+        if (lineItem.title() == null || !ignoredLineItems.contains(normalizeKey(lineItem.title()))) {
+            return false;
+        }
+        log.info("Ítem '{}' del pedido Shopify {} ignorado (no es un producto); su importe queda en el monto a cobrar",
+                lineItem.title(), shopifyOrderId);
+        return true;
     }
 
     private OrderItemRequest resolveItem(ShopifyLineItem lineItem, Currency currency, String shopifyOrderId) {
@@ -193,7 +251,42 @@ public class ShopifyWebhookService {
         }
     }
 
-    private String resolvePhone(ShopifyOrderWebhookPayload payload) {
+    /**
+     * Campos del formulario de Releasit ("Información adicional"), con la clave en minúsculas y sin tildes
+     * ("Dirección" → "direccion") para no depender de cómo esté escrita la etiqueta en el formulario.
+     */
+    private Map<String, String> formFields(ShopifyOrderWebhookPayload payload) {
+        Map<String, String> fields = new HashMap<>();
+        if (payload.noteAttributes() == null) {
+            return fields;
+        }
+        for (NoteAttribute attribute : payload.noteAttributes()) {
+            if (attribute.name() != null && notBlank(attribute.value())) {
+                fields.put(normalizeKey(attribute.name()), attribute.value().trim());
+            }
+        }
+        return fields;
+    }
+
+    private String normalizeKey(String key) {
+        return Normalizer.normalize(key.trim().toLowerCase(), Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+    }
+
+    private String firstField(Map<String, String> formFields, String... keys) {
+        for (String key : keys) {
+            if (notBlank(formFields.get(key))) {
+                return formFields.get(key);
+            }
+        }
+        return null;
+    }
+
+    // Primero lo que escribió el comprador en el formulario (su WhatsApp); después los campos estándar de Shopify
+    private String resolvePhone(ShopifyOrderWebhookPayload payload, Map<String, String> formFields) {
+        String formPhone = firstField(formFields, "whatsapp", "telefono", "celular", "phone");
+        if (formPhone != null) {
+            return formPhone;
+        }
         if (payload.shippingAddress() != null && notBlank(payload.shippingAddress().phone())) {
             return payload.shippingAddress().phone();
         }
@@ -203,7 +296,12 @@ public class ShopifyWebhookService {
         return payload.phone();
     }
 
-    private String resolveCustomerName(ShopifyOrderWebhookPayload payload) {
+    private String resolveCustomerName(ShopifyOrderWebhookPayload payload, Map<String, String> formFields) {
+        String formFirstName = firstField(formFields, "nombre");
+        String formLastName = firstField(formFields, "apellido");
+        if (formFirstName != null || formLastName != null) {
+            return joinNames(formFirstName, formLastName);
+        }
         if (payload.customer() != null
                 && (notBlank(payload.customer().firstName()) || notBlank(payload.customer().lastName()))) {
             return joinNames(payload.customer().firstName(), payload.customer().lastName());
@@ -222,19 +320,40 @@ public class ShopifyWebhookService {
         return payload.email();
     }
 
-    private String resolveShippingAddress(ShopifyAddress address) {
+    // Dirección del formulario si la hay (la dirección de envío estándar suele venir vacía en los pedidos de Releasit),
+    // más la referencia cercana, que le sirve al repartidor
+    private String resolveShippingAddress(ShopifyAddress address, Map<String, String> formFields) {
+        String formAddress = joinNonBlank(
+                firstField(formFields, "direccion"),
+                firstField(formFields, "ciudad"),
+                firstField(formFields, "departamento"));
+
+        String baseAddress = notBlank(formAddress) ? formAddress : standardAddress(address);
+        String reference = firstField(formFields, "referencia cercana", "referencia");
+
+        if (reference == null) {
+            return notBlank(baseAddress) ? baseAddress : null;
+        }
+        return notBlank(baseAddress) ? baseAddress + ". Referencia: " + reference : "Referencia: " + reference;
+    }
+
+    private String standardAddress(ShopifyAddress address) {
         if (address == null) {
             return null;
         }
-        return List.of(
-                orEmpty(address.address1()),
-                orEmpty(address.address2()),
-                orEmpty(address.city()),
-                orEmpty(address.province()),
-                orEmpty(address.zip()),
-                orEmpty(address.country()))
-                .stream()
+        return joinNonBlank(
+                address.address1(),
+                address.address2(),
+                address.city(),
+                address.province(),
+                address.zip(),
+                address.country());
+    }
+
+    private String joinNonBlank(String... parts) {
+        return Stream.of(parts)
                 .filter(this::notBlank)
+                .map(String::trim)
                 .collect(Collectors.joining(", "));
     }
 

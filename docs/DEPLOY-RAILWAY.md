@@ -44,6 +44,9 @@ SHOPIFY_WEBHOOK_SECRET=<se completa en el paso 6>
 - **`ADMIN_PASSWORD`**: solo se usa para crear el administrador en el primer arranque. Guardala en un lugar seguro.
 - **`CORS_ALLOWED_ORIGINS`**: todavía no hay frontend; cualquier URL válida sirve. Cuando exista, va la URL del frontend.
 - **No** definas `SPRING_PROFILES_ACTIVE`: sin perfil, la app usa la configuración de producción.
+- Opcional: `SHOPIFY_IGNORED_LINE_ITEMS` con los nombres de los ítems que no son productos (extras del
+  formulario), separados por coma. Por defecto: `Envio Prioritario y Garantia Extendida`. Solo hace falta
+  definirla si Releasit agrega otros extras.
 - `SHOPIFY_WEBHOOK_SECRET` se puede dejar vacío por ahora: la app arranca igual, y mientras falte rechaza los
   webhooks con 503 (Shopify los reintenta, no se pierden).
 

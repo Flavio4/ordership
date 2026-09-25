@@ -44,8 +44,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     long countByStatus(OrderStatus status);
 
-    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.createdAt BETWEEN :from AND :to AND o.status <> :excludedStatus")
-    BigDecimal sumTotalAmountByCreatedAtBetween(@Param("from") Instant from, @Param("to") Instant to,
+    // Ingresos = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo
+    @Query("SELECT COALESCE(SUM(o.amountToCollect), 0) FROM Order o WHERE o.createdAt BETWEEN :from AND :to AND o.status <> :excludedStatus")
+    BigDecimal sumAmountToCollectByCreatedAtBetween(@Param("from") Instant from, @Param("to") Instant to,
             @Param("excludedStatus") OrderStatus excludedStatus);
 
     @Query("SELECT o.status, COUNT(o) FROM Order o WHERE o.createdAt BETWEEN :from AND :to GROUP BY o.status")

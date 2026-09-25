@@ -9,12 +9,24 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShopifyOrderWebhookPayload(
         Long id,
+        // Número de pedido que ve la tienda, ej. "#1488"
+        String name,
         String email,
         String phone,
         String currency,
+        // Total que paga el cliente (con ofertas por cantidad y extras incluidos)
+        @JsonProperty("total_price") BigDecimal totalPrice,
         ShopifyCustomer customer,
         @JsonProperty("shipping_address") ShopifyAddress shippingAddress,
-        @JsonProperty("line_items") List<ShopifyLineItem> lineItems) {
+        @JsonProperty("line_items") List<ShopifyLineItem> lineItems,
+        // "Información adicional" del pedido: acá guarda el formulario de Releasit lo que escribe el comprador
+        @JsonProperty("note_attributes") List<NoteAttribute> noteAttributes) {
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record NoteAttribute(
+            String name,
+            String value) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ShopifyCustomer(

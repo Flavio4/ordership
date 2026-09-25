@@ -52,10 +52,11 @@ class ShopifyWebhookControllerTest {
         mockMvc.perform(post("/api/webhooks/shopify/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY.getBytes(StandardCharsets.UTF_8))
-                        .header("X-Shopify-Hmac-Sha256", sign(BODY, SECRET)))
+                        .header("X-Shopify-Hmac-Sha256", sign(BODY, SECRET))
+                        .header("X-Shopify-Shop-Domain", "fqyja1-t8.myshopify.com"))
                 .andExpect(status().isOk());
 
-        verify(shopifyWebhookService).receiveOrderCreated(BODY);
+        verify(shopifyWebhookService).receiveOrderCreated(BODY, "fqyja1-t8.myshopify.com");
     }
 
     @Test
@@ -66,7 +67,7 @@ class ShopifyWebhookControllerTest {
                         .header("X-Shopify-Hmac-Sha256", sign(BODY, "otro-secret")))
                 .andExpect(status().isUnauthorized());
 
-        verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+        verify(shopifyWebhookService, never()).receiveOrderCreated(any(), any());
     }
 
     @Test
@@ -82,7 +83,7 @@ class ShopifyWebhookControllerTest {
                         .header("X-Shopify-Hmac-Sha256", hex))
                 .andExpect(status().isUnauthorized());
 
-        verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+        verify(shopifyWebhookService, never()).receiveOrderCreated(any(), any());
     }
 
     @Test
@@ -93,7 +94,7 @@ class ShopifyWebhookControllerTest {
                         .header("X-Shopify-Hmac-Sha256", "   "))
                 .andExpect(status().isUnauthorized());
 
-        verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+        verify(shopifyWebhookService, never()).receiveOrderCreated(any(), any());
     }
 
     @Test
@@ -103,7 +104,7 @@ class ShopifyWebhookControllerTest {
                         .content(BODY.getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isUnauthorized());
 
-        verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+        verify(shopifyWebhookService, never()).receiveOrderCreated(any(), any());
     }
 
     @Test
@@ -115,7 +116,7 @@ class ShopifyWebhookControllerTest {
                             .content(BODY.getBytes(StandardCharsets.UTF_8)))
                     .andExpect(status().isServiceUnavailable());
 
-            verify(shopifyWebhookService, never()).receiveOrderCreated(any());
+            verify(shopifyWebhookService, never()).receiveOrderCreated(any(), any());
         } finally {
             ReflectionTestUtils.setField(controller, "webhookSecret", SECRET);
         }

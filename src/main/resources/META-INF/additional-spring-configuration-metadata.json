@@ -36,6 +36,11 @@
       "description": "A description for 'app.shopify.allow-unsigned-webhooks'"
     },
     {
+      "name": "app.shopify.ignored-line-items",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Ítems de pedido de Shopify que no son productos (extras del formulario), separados por coma. No se crean en el catálogo ni mueven stock."
+    },
+    {
       "name": "SPRING_PROFILES_ACTIVE",
       "type": "java.lang.String",
       "description": "A description for 'SPRING_PROFILES_ACTIVE'"
