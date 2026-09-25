@@ -47,6 +47,8 @@ SHOPIFY_WEBHOOK_SECRET=<se completa en el paso 6>
 - Opcional: `SHOPIFY_IGNORED_LINE_ITEMS` con los nombres de los ítems que no son productos (extras del
   formulario), separados por coma. Por defecto: `Envio Prioritario y Garantia Extendida`. Solo hace falta
   definirla si Releasit agrega otros extras.
+- Opcional: `JWT_REFRESH_EXPIRATION_DAYS` (por defecto `30`): cuántos días sin abrir la app aguanta la sesión
+  antes de pedir la contraseña de nuevo. `JWT_EXPIRATION_MS` (por defecto 24 h) es la vida de cada token de acceso.
 - `SHOPIFY_WEBHOOK_SECRET` se puede dejar vacío por ahora: la app arranca igual, y mientras falte rechaza los
   webhooks con 503 (Shopify los reintenta, no se pierden).
 

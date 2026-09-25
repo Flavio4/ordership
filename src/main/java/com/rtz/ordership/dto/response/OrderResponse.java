@@ -14,6 +14,7 @@ import java.util.UUID;
 
 public record OrderResponse(
                 UUID id,
+                UUID customerId,
                 String customerName,
                 String customerPhone,
                 String addressLabel,
@@ -46,6 +47,7 @@ public record OrderResponse(
 
                 return new OrderResponse(
                                 order.getId(),
+                                order.getCustomer().getId(),
                                 order.getCustomer().getFullName(),
                                 order.getCustomer().getPhone(),
                                 order.getCustomerAddress() != null ? order.getCustomerAddress().getLabel() : null,

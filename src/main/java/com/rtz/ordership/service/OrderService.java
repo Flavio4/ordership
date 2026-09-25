@@ -1,25 +1,5 @@
 package com.rtz.ordership.service;
 
-import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
-import com.rtz.ordership.dto.request.OrderItemRequest;
-import com.rtz.ordership.dto.request.OrderRequest;
-import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
-import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
-import com.rtz.ordership.dto.response.OrderResponse;
-import com.rtz.ordership.dto.webhook.ShopifyOrderDetails;
-import com.rtz.ordership.entity.*;
-import com.rtz.ordership.entity.enums.OrderSource;
-import com.rtz.ordership.entity.enums.OrderStatus;
-import com.rtz.ordership.entity.enums.ShippingMethod;
-import com.rtz.ordership.exception.ResourceNotFoundException;
-import com.rtz.ordership.repository.*;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,6 +7,38 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
+import com.rtz.ordership.dto.request.OrderItemRequest;
+import com.rtz.ordership.dto.request.OrderRequest;
+import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
+import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
+import com.rtz.ordership.dto.response.OrderResponse;
+import com.rtz.ordership.dto.webhook.ShopifyOrderDetails;
+import com.rtz.ordership.entity.Customer;
+import com.rtz.ordership.entity.CustomerAddress;
+import com.rtz.ordership.entity.Order;
+import com.rtz.ordership.entity.OrderItem;
+import com.rtz.ordership.entity.Product;
+import com.rtz.ordership.entity.ShopifyReference;
+import com.rtz.ordership.entity.User;
+import com.rtz.ordership.entity.enums.OrderSource;
+import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.ShippingMethod;
+import com.rtz.ordership.exception.ResourceNotFoundException;
+import com.rtz.ordership.repository.CustomerAddressRepository;
+import com.rtz.ordership.repository.CustomerRepository;
+import com.rtz.ordership.repository.OrderRepository;
+import com.rtz.ordership.repository.ProductRepository;
+import com.rtz.ordership.util.SearchPatterns;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -60,11 +72,12 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
-            UUID customerId, OrderSource source, Pageable pageable) {
-        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {}",
-                status, deliveryDate, customerId, source);
+            UUID customerId, OrderSource source, String query, Pageable pageable) {
+        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {}",
+                status, deliveryDate, customerId, source, query);
 
-        Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source, pageable);
+        Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source,
+                SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query), pageable);
 
         Page<OrderResponse> result = page.map(OrderResponse::fromEntity);
         log.info("Se encontraron {} pedidos en la página (Total: {})",

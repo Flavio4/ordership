@@ -1,6 +1,7 @@
 package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.request.LoginRequest;
+import com.rtz.ordership.dto.request.RefreshTokenRequest;
 import com.rtz.ordership.dto.request.RegisterRequest;
 import com.rtz.ordership.dto.response.LoginResponse;
 import com.rtz.ordership.dto.response.UserResponse;
@@ -21,15 +22,19 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final RefreshTokenService refreshTokenService;
 
     public AuthService(UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtProvider jwtProvider) {
+            JwtProvider jwtProvider,
+            RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
+        this.refreshTokenService = refreshTokenService;
     }
 
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         log.info("Intento de login para email: {}", request.email());
 
@@ -49,9 +54,25 @@ public class AuthService {
             throw new UnauthorizedException("Credenciales inválidas");
         }
 
-        String token = jwtProvider.generateToken(user.getEmail(), user.getRole().name());
         log.info("Login exitoso para: {} [rol: {}]", user.getEmail(), user.getRole());
-        return new LoginResponse(token, UserResponse.fromEntity(user));
+        return issueSession(user);
+    }
+
+    @Transactional(noRollbackFor = UnauthorizedException.class)
+    public LoginResponse refresh(RefreshTokenRequest request) {
+        User user = refreshTokenService.consume(request.refreshToken());
+        log.info("Sesión renovada para: {}", user.getEmail());
+        return issueSession(user);
+    }
+
+    public void logout(RefreshTokenRequest request) {
+        refreshTokenService.revoke(request.refreshToken());
+    }
+
+    private LoginResponse issueSession(User user) {
+        String token = jwtProvider.generateToken(user.getEmail(), user.getRole().name());
+        String refreshToken = refreshTokenService.issue(user);
+        return new LoginResponse(token, refreshToken, UserResponse.fromEntity(user));
     }
 
     @Transactional

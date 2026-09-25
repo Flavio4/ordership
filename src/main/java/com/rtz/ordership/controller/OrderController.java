@@ -37,14 +37,16 @@ public class OrderController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
-    @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega, cliente y origen (MANUAL/SHOPIFY)")
+    @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega, cliente y origen (MANUAL/SHOPIFY). "
+            + "query busca por nombre del cliente, número de Shopify (#1488) o teléfono (desde 6 dígitos)")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
             @RequestParam(required = false) UUID customerId,
             @RequestParam(required = false) OrderSource source,
+            @RequestParam(required = false) String query,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, pageable));
+        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, pageable));
     }
 
     @GetMapping("/{id}")

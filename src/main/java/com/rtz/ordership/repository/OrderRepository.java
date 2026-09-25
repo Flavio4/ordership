@@ -33,11 +33,17 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
               AND (:status IS NULL OR o.status = :status)
               AND (:deliveryDate IS NULL OR o.deliveryDate = :deliveryDate)
               AND (:source IS NULL OR o.source = :source)
+              AND (:textLike IS NULL
+                   OR LOWER(o.customer.fullName) LIKE :textLike
+                   OR LOWER(o.shopify.orderName) LIKE :textLike
+                   OR (:phoneLike IS NOT NULL AND o.customer.phone LIKE :phoneLike))
             """)
     Page<Order> search(@Param("customerId") UUID customerId,
             @Param("status") OrderStatus status,
             @Param("deliveryDate") LocalDate deliveryDate,
             @Param("source") OrderSource source,
+            @Param("textLike") String textLike,
+            @Param("phoneLike") String phoneLike,
             Pageable pageable);
 
     // Dashboard queries

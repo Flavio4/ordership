@@ -7,12 +7,15 @@ import com.rtz.ordership.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,9 +31,14 @@ public class ProductController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
-    @Operation(summary = "Listar productos", description = "Obtiene todos los productos activos")
-    public ResponseEntity<List<ProductResponse>> getAllProducts() {
-        return ResponseEntity.ok(productService.getAllProducts());
+    @Operation(summary = "Listar productos", description = "Lista productos paginados. Por defecto solo los activos (active=false para ver los desactivados). "
+            + "needsReview=true filtra los creados desde Shopify a los que falta el precio de compra; query busca por nombre o SKU")
+    public ResponseEntity<Page<ProductResponse>> getAllProducts(
+            @RequestParam(defaultValue = "true") boolean active,
+            @RequestParam(required = false) Boolean needsReview,
+            @RequestParam(required = false) String query,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(productService.getAllProducts(active, needsReview, query, pageable));
     }
 
     @GetMapping("/{id}")

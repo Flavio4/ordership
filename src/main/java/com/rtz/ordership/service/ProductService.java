@@ -7,11 +7,13 @@ import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.ProductRepository;
+import com.rtz.ordership.util.SearchPatterns;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -24,12 +26,13 @@ public class ProductService {
         this.productRepository = productRepository;
     }
 
-    public List<ProductResponse> getAllProducts() {
-        log.info("Listando todos los productos activos");
-        List<ProductResponse> products = productRepository.findByActiveTrue().stream()
-                .map(ProductResponse::fromEntity)
-                .toList();
-        log.info("Se encontraron {} productos activos", products.size());
+    public Page<ProductResponse> getAllProducts(boolean active, Boolean needsReview, String query, Pageable pageable) {
+        log.info("Listando productos | activos: {} | needsReview: {} | q: {}", active, needsReview, query);
+        Page<ProductResponse> products = productRepository
+                .search(active, needsReview, SearchPatterns.containsLike(query), pageable)
+                .map(ProductResponse::fromEntity);
+        log.info("Se encontraron {} productos en la página (Total: {})",
+                products.getNumberOfElements(), products.getTotalElements());
         return products;
     }
 
