@@ -1,12 +1,16 @@
 package com.rtz.ordership.controller;
 
+import com.rtz.ordership.dto.request.DeliveryAssignmentRequest;
+import com.rtz.ordership.dto.request.DeliveryStatusUpdateRequest;
 import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
+import com.rtz.ordership.dto.request.OrderDeliveryRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
 import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.service.DeliveryAssignmentService;
 import com.rtz.ordership.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,9 +34,11 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderService orderService;
+    private final DeliveryAssignmentService deliveryService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, DeliveryAssignmentService deliveryService) {
         this.orderService = orderService;
+        this.deliveryService = deliveryService;
     }
 
     @GetMapping
@@ -85,6 +91,26 @@ public class OrderController {
     public ResponseEntity<OrderResponse> updateOrderAddress(@PathVariable UUID id,
             @Valid @RequestBody OrderAddressUpdateRequest request) {
         return ResponseEntity.ok(orderService.updateOrderAddress(id, request));
+    }
+
+    @PostMapping("/{id}/delivery")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Asignar reparto", description = "Asigna un pedido CONFIRMED a un repartidor propio (requiere dirección con zona) "
+            + "o a un courier (trackingCode opcional). El pedido pasa a ASSIGNED")
+    public ResponseEntity<OrderResponse> assignDelivery(@PathVariable UUID id,
+            @Valid @RequestBody OrderDeliveryRequest request) {
+        deliveryService.assign(new DeliveryAssignmentRequest(id, request.carrierId(), request.trackingCode(), request.notes()));
+        return ResponseEntity.ok(orderService.getOrderById(id));
+    }
+
+    @PatchMapping("/{id}/delivery")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Avanzar la entrega", description = "Cambia el estado de la entrega en curso: IN_TRANSIT, DELIVERED o FAILED "
+            + "(notes obligatorio con el motivo; el pedido vuelve a CONFIRMED para otro intento)")
+    public ResponseEntity<OrderResponse> updateDelivery(@PathVariable UUID id,
+            @Valid @RequestBody DeliveryStatusUpdateRequest request) {
+        deliveryService.updateActiveDeliveryOfOrder(id, request);
+        return ResponseEntity.ok(orderService.getOrderById(id));
     }
 
     @DeleteMapping("/{id}")

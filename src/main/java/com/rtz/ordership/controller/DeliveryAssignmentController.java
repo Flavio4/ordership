@@ -36,9 +36,9 @@ public class DeliveryAssignmentController {
     public ResponseEntity<Page<DeliveryAssignmentResponse>> getAllAssignments(
             @RequestParam(required = false) DeliveryStatus status,
             @RequestParam(required = false) UUID zoneId,
-            @RequestParam(required = false) UUID deliveryUserId,
+            @RequestParam(required = false) UUID carrierId,
             @PageableDefault(size = 20, sort = "assignedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(deliveryService.getAllAssignments(status, zoneId, deliveryUserId, pageable));
+        return ResponseEntity.ok(deliveryService.getAllAssignments(status, zoneId, carrierId, pageable));
     }
 
     @GetMapping("/my")
@@ -59,7 +59,7 @@ public class DeliveryAssignmentController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
-    @Operation(summary = "Asignar pedido", description = "Asigna un pedido PENDING a un repartidor. El pedido pasa automáticamente a ASSIGNED")
+    @Operation(summary = "Asignar pedido", description = "Asigna un pedido CONFIRMED a un repartidor propio o courier. El pedido pasa a ASSIGNED")
     public ResponseEntity<DeliveryAssignmentResponse> assignOrder(
             @Valid @RequestBody DeliveryAssignmentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(deliveryService.assignOrder(request));

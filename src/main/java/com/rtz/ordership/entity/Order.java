@@ -98,8 +98,11 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
-    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
-    private DeliveryAssignment deliveryAssignment;
+    // Intentos de entrega, el más reciente primero
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    @OrderBy("assignedAt DESC")
+    @Builder.Default
+    private List<DeliveryAssignment> deliveryAssignments = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

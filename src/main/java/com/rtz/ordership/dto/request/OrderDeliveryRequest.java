@@ -4,8 +4,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
-public record DeliveryAssignmentRequest(
-        @NotNull(message = "El ID del pedido es obligatorio") UUID orderId,
+public record OrderDeliveryRequest(
         @NotNull(message = "Elegí quién lleva el pedido") UUID carrierId,
         String trackingCode,
         String notes) {

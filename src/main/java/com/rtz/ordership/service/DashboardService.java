@@ -1,7 +1,6 @@
 package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.response.DashboardResponse;
-import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.repository.DeliveryAssignmentRepository;
 import com.rtz.ordership.repository.OrderRepository;
@@ -64,12 +63,10 @@ public class DashboardService {
 
                 // Entregas activas por zona
                 List<DashboardResponse.ZoneDeliveryCount> deliveriesByZone = deliveryRepository
-                                .findAll()
+                                .findByStatusIn(DeliveryAssignmentService.ACTIVE_STATUSES)
                                 .stream()
-                                .filter(da -> da.getStatus() == DeliveryStatus.ASSIGNED
-                                                || da.getStatus() == DeliveryStatus.IN_TRANSIT)
                                 .collect(java.util.stream.Collectors.groupingBy(
-                                                da -> da.getZone().getName(),
+                                                da -> da.getZone() != null ? da.getZone().getName() : "Courier (sin zona)",
                                                 java.util.stream.Collectors.counting()))
                                 .entrySet().stream()
                                 .map(e -> new DashboardResponse.ZoneDeliveryCount(e.getKey(), e.getValue()))

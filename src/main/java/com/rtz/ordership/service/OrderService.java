@@ -23,11 +23,13 @@ import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.dto.webhook.ShopifyOrderDetails;
 import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.entity.CustomerAddress;
+import com.rtz.ordership.entity.DeliveryAssignment;
 import com.rtz.ordership.entity.Order;
 import com.rtz.ordership.entity.OrderItem;
 import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.entity.ShopifyReference;
 import com.rtz.ordership.entity.User;
+import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
@@ -57,6 +59,10 @@ public class OrderService {
             OrderStatus.IN_TRANSIT, Set.of(OrderStatus.DELIVERED, OrderStatus.CANCELLED),
             OrderStatus.DELIVERED, Set.of(),
             OrderStatus.CANCELLED, Set.of());
+
+    // Estos solo los cambia DeliveryAssignmentService, junto con la entrega
+    private static final Set<OrderStatus> DELIVERY_STATUSES =
+            Set.of(OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED);
 
     public OrderService(OrderRepository orderRepository,
             CustomerRepository customerRepository,
@@ -285,6 +291,11 @@ public class OrderService {
         OrderStatus currentStatus = order.getStatus();
         OrderStatus newStatus = request.status();
 
+        if (DELIVERY_STATUSES.contains(newStatus)) {
+            throw new IllegalStateException(
+                    "Los estados de reparto se cambian desde la entrega del pedido (asignar repartidor, en camino, entregado)");
+        }
+
         // Validar transición
         Set<OrderStatus> allowed = VALID_TRANSITIONS.getOrDefault(currentStatus, Set.of());
         if (!allowed.contains(newStatus)) {
@@ -299,6 +310,7 @@ public class OrderService {
 
         if (newStatus == OrderStatus.CANCELLED) {
             restoreStock(order);
+            closeActiveDeliveries(order);
         }
 
         order.setStatus(newStatus);
@@ -352,10 +364,22 @@ public class OrderService {
         }
 
         restoreStock(order);
+        closeActiveDeliveries(order);
 
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
         log.info("Pedido cancelado - id: {}", id);
+    }
+
+    private void closeActiveDeliveries(Order order) {
+        for (DeliveryAssignment delivery : order.getDeliveryAssignments()) {
+            if (delivery.isActive()) {
+                delivery.setStatus(DeliveryStatus.FAILED);
+                delivery.setFailureReason("Pedido cancelado");
+                delivery.setCompletedAt(Instant.now());
+                log.info("Entrega {} cerrada por cancelación del pedido {}", delivery.getId(), order.getId());
+            }
+        }
     }
 
     private void restoreStock(Order order) {

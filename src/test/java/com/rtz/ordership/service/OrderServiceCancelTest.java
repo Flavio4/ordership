@@ -1,10 +1,14 @@
 package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
+import com.rtz.ordership.entity.Carrier;
 import com.rtz.ordership.entity.Customer;
+import com.rtz.ordership.entity.DeliveryAssignment;
 import com.rtz.ordership.entity.Order;
 import com.rtz.ordership.entity.OrderItem;
 import com.rtz.ordership.entity.Product;
+import com.rtz.ordership.entity.enums.CarrierType;
+import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.repository.CustomerAddressRepository;
 import com.rtz.ordership.repository.CustomerRepository;
@@ -65,6 +69,32 @@ class OrderServiceCancelTest {
                 new OrderStatusUpdateRequest(OrderStatus.CANCELLED)))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(product.getStock()).isEqualTo(5);
+    }
+
+    @Test
+    void deliveryStatusesCannotBeSetWithoutADelivery() {
+        Order order = order(OrderStatus.CONFIRMED, product(5), 1);
+
+        assertThatThrownBy(() -> orderService.updateOrderStatus(order.getId(),
+                new OrderStatusUpdateRequest(OrderStatus.ASSIGNED)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("entrega");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void cancellingClosesTheDeliveryInProgress() {
+        Order order = order(OrderStatus.ASSIGNED, product(5), 1);
+        DeliveryAssignment delivery = DeliveryAssignment.builder()
+                .carrier(Carrier.builder().id(UUID.randomUUID()).name("Tío Juan").type(CarrierType.OWN).build())
+                .status(DeliveryStatus.ASSIGNED)
+                .build();
+        order.getDeliveryAssignments().add(delivery);
+
+        orderService.updateOrderStatus(order.getId(), new OrderStatusUpdateRequest(OrderStatus.CANCELLED));
+
+        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.FAILED);
+        assertThat(delivery.getFailureReason()).isEqualTo("Pedido cancelado");
     }
 
     @Test

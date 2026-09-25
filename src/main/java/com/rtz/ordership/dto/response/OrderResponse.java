@@ -20,6 +20,9 @@ public record OrderResponse(
                 String customerPhone,
                 String addressLabel,
                 String addressMapUrl,
+                String addressStreet,
+                String addressCity,
+                String addressReference,
                 String zoneName,
                 String shippingAddressRaw,
                 OrderStatus status,
@@ -36,16 +39,11 @@ public record OrderResponse(
                 LocalDate deliveryDate,
                 List<OrderItemResponse> items,
                 String createdByName,
-                String deliveryUserName,
+                List<OrderDeliveryResponse> deliveries,
                 Instant confirmedAt,
                 Instant createdAt,
                 Instant updatedAt) {
         public static OrderResponse fromEntity(Order order) {
-                String deliveryUser = null;
-                if (order.getDeliveryAssignment() != null) {
-                        deliveryUser = order.getDeliveryAssignment().getDeliveryUser().getFullName();
-                }
-
                 return new OrderResponse(
                                 order.getId(),
                                 order.getOrderNumber(),
@@ -54,6 +52,9 @@ public record OrderResponse(
                                 order.getCustomer().getPhone(),
                                 order.getCustomerAddress() != null ? order.getCustomerAddress().getLabel() : null,
                                 order.getCustomerAddress() != null ? order.getCustomerAddress().getMapUrl() : null,
+                                order.getCustomerAddress() != null ? order.getCustomerAddress().getStreet() : null,
+                                order.getCustomerAddress() != null ? order.getCustomerAddress().getCity() : null,
+                                order.getCustomerAddress() != null ? order.getCustomerAddress().getDescription() : null,
                                 order.getCustomerAddress() != null && order.getCustomerAddress().getZone() != null
                                                 ? order.getCustomerAddress().getZone().getName()
                                                 : null,
@@ -74,7 +75,9 @@ public record OrderResponse(
                                                 .map(OrderItemResponse::fromEntity)
                                                 .toList(),
                                 order.getCreatedBy() != null ? order.getCreatedBy().getFullName() : null,
-                                deliveryUser,
+                                order.getDeliveryAssignments().stream()
+                                                .map(OrderDeliveryResponse::fromEntity)
+                                                .toList(),
                                 order.getConfirmedAt(),
                                 order.getCreatedAt(),
                                 order.getUpdatedAt());

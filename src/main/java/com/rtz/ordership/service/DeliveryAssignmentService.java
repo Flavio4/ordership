@@ -3,15 +3,17 @@ package com.rtz.ordership.service;
 import com.rtz.ordership.dto.request.DeliveryAssignmentRequest;
 import com.rtz.ordership.dto.request.DeliveryStatusUpdateRequest;
 import com.rtz.ordership.dto.response.DeliveryAssignmentResponse;
+import com.rtz.ordership.entity.Carrier;
 import com.rtz.ordership.entity.DeliveryAssignment;
 import com.rtz.ordership.entity.Order;
 import com.rtz.ordership.entity.User;
+import com.rtz.ordership.entity.enums.CarrierType;
 import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderStatus;
-import com.rtz.ordership.entity.enums.Role;
+import com.rtz.ordership.entity.enums.ShippingMethod;
 import com.rtz.ordership.exception.ResourceNotFoundException;
+import com.rtz.ordership.repository.CarrierRepository;
 import com.rtz.ordership.repository.DeliveryAssignmentRepository;
-import com.rtz.ordership.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -28,137 +31,118 @@ import java.util.UUID;
 @Service
 public class DeliveryAssignmentService {
 
-    private final DeliveryAssignmentRepository deliveryRepository;
-    private final OrderService orderService;
-    private final UserRepository userRepository;
+    static final Set<DeliveryStatus> ACTIVE_STATUSES = Set.of(DeliveryStatus.ASSIGNED, DeliveryStatus.IN_TRANSIT);
 
-    // Transiciones de estado válidas para la entrega
+    // "En camino" es opcional: quien marca en papel suele pasar directo a entregado
     private static final Map<DeliveryStatus, Set<DeliveryStatus>> VALID_TRANSITIONS = Map.of(
-            DeliveryStatus.ASSIGNED, Set.of(DeliveryStatus.IN_TRANSIT),
+            DeliveryStatus.ASSIGNED, Set.of(DeliveryStatus.IN_TRANSIT, DeliveryStatus.DELIVERED, DeliveryStatus.FAILED),
             DeliveryStatus.IN_TRANSIT, Set.of(DeliveryStatus.DELIVERED, DeliveryStatus.FAILED),
             DeliveryStatus.DELIVERED, Set.of(),
             DeliveryStatus.FAILED, Set.of());
 
+    private final DeliveryAssignmentRepository deliveryRepository;
+    private final OrderService orderService;
+    private final CarrierService carrierService;
+    private final CarrierRepository carrierRepository;
+
     public DeliveryAssignmentService(DeliveryAssignmentRepository deliveryRepository,
             OrderService orderService,
-            UserRepository userRepository) {
+            CarrierService carrierService,
+            CarrierRepository carrierRepository) {
         this.deliveryRepository = deliveryRepository;
         this.orderService = orderService;
-        this.userRepository = userRepository;
+        this.carrierService = carrierService;
+        this.carrierRepository = carrierRepository;
     }
-
-    // ── Listar asignaciones (paginado + filtros) ────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<DeliveryAssignmentResponse> getAllAssignments(
-            DeliveryStatus status, UUID zoneId, UUID deliveryUserId, Pageable pageable) {
-
-        log.info("Listando asignaciones | status: {} | zona: {} | repartidor: {}", status, zoneId, deliveryUserId);
-
-        Page<DeliveryAssignment> page;
-
-        if (status != null && deliveryUserId != null && zoneId != null) {
-            page = deliveryRepository.findByStatusAndDeliveryUserIdAndZoneId(status, deliveryUserId, zoneId, pageable);
-        } else if (status != null && zoneId != null) {
-            page = deliveryRepository.findByStatusAndZoneId(status, zoneId, pageable);
-        } else if (status != null && deliveryUserId != null) {
-            page = deliveryRepository.findByStatusAndDeliveryUserId(status, deliveryUserId, pageable);
-        } else if (deliveryUserId != null && zoneId != null) {
-            page = deliveryRepository.findByDeliveryUserIdAndZoneId(deliveryUserId, zoneId, pageable);
-        } else if (status != null) {
-            page = deliveryRepository.findByStatus(status, pageable);
-        } else if (zoneId != null) {
-            page = deliveryRepository.findByZoneId(zoneId, pageable);
-        } else if (deliveryUserId != null) {
-            page = deliveryRepository.findByDeliveryUserId(deliveryUserId, pageable);
-        } else {
-            page = deliveryRepository.findAll(pageable);
-        }
-
-        Page<DeliveryAssignmentResponse> result = page.map(DeliveryAssignmentResponse::fromEntity);
-        log.info("Se encontraron {} asignaciones en la página (Total: {})",
-                result.getNumberOfElements(), result.getTotalElements());
-        return result;
+            DeliveryStatus status, UUID zoneId, UUID carrierId, Pageable pageable) {
+        log.info("Listando entregas | status: {} | zona: {} | repartidor: {}", status, zoneId, carrierId);
+        return deliveryRepository.search(status, zoneId, carrierId, pageable)
+                .map(DeliveryAssignmentResponse::fromEntity);
     }
-
-    // ── Obtener asignación por ID ───────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public DeliveryAssignmentResponse getAssignmentById(UUID id) {
-        log.info("Obteniendo detalle de asignación ID: {}", id);
-        DeliveryAssignment assignment = findAssignmentOrThrow(id);
-        return DeliveryAssignmentResponse.fromEntity(assignment);
+        return DeliveryAssignmentResponse.fromEntity(findAssignmentOrThrow(id));
     }
 
-    // ── Asignar pedido a repartidor ─────────────────────────────────────────
+    // ── Asignar el reparto ──────────────────────────────────────────────────
 
     @Transactional
     public DeliveryAssignmentResponse assignOrder(DeliveryAssignmentRequest request) {
-        log.info("Asignando pedido ID: {} al repartidor ID: {}", request.orderId(), request.deliveryUserId());
+        return DeliveryAssignmentResponse.fromEntity(assign(request));
+    }
 
-        // 1. Validar que el pedido exista y esté confirmado por el cliente
+    @Transactional
+    public DeliveryAssignment assign(DeliveryAssignmentRequest request) {
+        log.info("Asignando pedido ID: {} al repartidor ID: {}", request.orderId(), request.carrierId());
+
         Order order = orderService.findOrderOrThrow(request.orderId());
         if (order.getStatus() != OrderStatus.CONFIRMED) {
             throw new IllegalStateException(
-                    "Solo se pueden asignar pedidos en estado CONFIRMED. Estado actual: " + order.getStatus());
+                    "Solo se puede asignar el reparto de pedidos confirmados. Estado actual: " + order.getStatus());
         }
 
-        // 1b. Validar que tenga una dirección zonificada (los pedidos de Shopify
-        // pueden llegar sin una todavía)
-        if (order.getCustomerAddress() == null) {
+        Carrier carrier = carrierService.findCarrierOrThrow(request.carrierId());
+        if (!carrier.getActive()) {
+            throw new IllegalStateException("El repartidor '" + carrier.getName() + "' está desactivado");
+        }
+
+        boolean courier = carrier.getType() == CarrierType.COURIER;
+        if (!courier && order.getCustomerAddress() == null) {
             throw new IllegalStateException(
-                    "El pedido no tiene una dirección con zona asignada. Completá la dirección del cliente antes de asignar el reparto.");
+                    "Para un repartidor propio el pedido necesita una dirección con zona. "
+                            + "Asignale una dirección o despachalo por courier.");
         }
 
-        // 2. Validar que no esté ya asignado
-        if (deliveryRepository.existsByOrderId(request.orderId())) {
-            throw new IllegalStateException("Este pedido ya tiene una asignación de entrega");
+        if (deliveryRepository.existsByOrderIdAndStatusIn(order.getId(), ACTIVE_STATUSES)) {
+            throw new IllegalStateException("Este pedido ya tiene una entrega en curso");
         }
 
-        // 3. Validar que el usuario sea DELIVERY y esté activo
-        User deliveryUser = userRepository.findById(request.deliveryUserId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Repartidor no encontrado con ID: " + request.deliveryUserId()));
-
-        if (deliveryUser.getRole() != Role.DELIVERY) {
-            throw new IllegalStateException(
-                    "El usuario '" + deliveryUser.getFullName() + "' no tiene el rol DELIVERY");
-        }
-        if (!deliveryUser.getActive()) {
-            throw new IllegalStateException(
-                    "El repartidor '" + deliveryUser.getFullName() + "' está desactivado");
-        }
-
-        // 4. Crear la asignación (zona se copia de la dirección del pedido)
         DeliveryAssignment assignment = DeliveryAssignment.builder()
                 .order(order)
-                .deliveryUser(deliveryUser)
-                .zone(order.getCustomerAddress().getZone())
+                .carrier(carrier)
+                .zone(order.getCustomerAddress() != null ? order.getCustomerAddress().getZone() : null)
                 .status(DeliveryStatus.ASSIGNED)
-                .notes(request.notes())
+                .notes(blankToNull(request.notes()))
                 .build();
-
         assignment = deliveryRepository.save(assignment);
+        order.getDeliveryAssignments().addFirst(assignment);
 
-        // 5. Sincronizar: el pedido pasa a ASSIGNED
+        order.setShippingMethod(courier ? ShippingMethod.COURIER : ShippingMethod.OWN_DELIVERY);
+        order.setCourierName(courier ? carrier.getName() : null);
+        order.setTrackingCode(courier ? blankToNull(request.trackingCode()) : null);
         order.setStatus(OrderStatus.ASSIGNED);
-        log.info("Asignación creada - id: {} | Pedido {} → ASSIGNED | Repartidor: {}",
-                assignment.getId(), order.getId(), deliveryUser.getFullName());
 
-        return DeliveryAssignmentResponse.fromEntity(assignment);
+        log.info("Entrega creada - id: {} | Pedido {} → ASSIGNED | Repartidor: {} ({})",
+                assignment.getId(), order.getId(), carrier.getName(), carrier.getType());
+        return assignment;
     }
 
-    // ── Actualizar estado de entrega ────────────────────────────────────────
+    // ── Avanzar la entrega ──────────────────────────────────────────────────
 
     @Transactional
     public DeliveryAssignmentResponse updateStatus(UUID id, DeliveryStatusUpdateRequest request) {
-        log.info("Actualizando estado de entrega ID: {} → {}", id, request.status());
+        return DeliveryAssignmentResponse.fromEntity(changeStatus(findAssignmentOrThrow(id), request));
+    }
 
-        DeliveryAssignment assignment = findAssignmentOrThrow(id);
+    /** Cambia el estado de la entrega en curso de un pedido. */
+    @Transactional
+    public void updateActiveDeliveryOfOrder(UUID orderId, DeliveryStatusUpdateRequest request) {
+        List<DeliveryAssignment> active = deliveryRepository.findByOrderIdAndStatusIn(orderId, ACTIVE_STATUSES);
+        if (active.isEmpty()) {
+            throw new IllegalStateException("Este pedido no tiene una entrega en curso");
+        }
+        changeStatus(active.getFirst(), request);
+    }
+
+    private DeliveryAssignment changeStatus(DeliveryAssignment assignment, DeliveryStatusUpdateRequest request) {
         DeliveryStatus currentStatus = assignment.getStatus();
         DeliveryStatus newStatus = request.status();
+        log.info("Entrega ID: {} {} → {}", assignment.getId(), currentStatus, newStatus);
 
-        // Validar transición
         Set<DeliveryStatus> allowed = VALID_TRANSITIONS.getOrDefault(currentStatus, Set.of());
         if (!allowed.contains(newStatus)) {
             throw new IllegalStateException(
@@ -166,63 +150,52 @@ public class DeliveryAssignmentService {
                             currentStatus, newStatus, allowed));
         }
 
-        assignment.setStatus(newStatus);
-
-        // Actualizar notas si se proporcionaron
-        if (request.notes() != null) {
-            assignment.setNotes(request.notes());
+        String note = blankToNull(request.notes());
+        if (newStatus == DeliveryStatus.FAILED && note == null) {
+            throw new IllegalArgumentException("Contá por qué no se pudo entregar");
         }
 
-        // Sincronizar con el estado del pedido
+        assignment.setStatus(newStatus);
         Order order = assignment.getOrder();
         switch (newStatus) {
-            case IN_TRANSIT -> {
-                order.setStatus(OrderStatus.IN_TRANSIT);
-                log.info("Pedido {} → IN_TRANSIT", order.getId());
-            }
+            case IN_TRANSIT -> order.setStatus(OrderStatus.IN_TRANSIT);
             case DELIVERED -> {
                 order.setStatus(OrderStatus.DELIVERED);
                 assignment.setCompletedAt(Instant.now());
-                log.info("Pedido {} → DELIVERED | Entrega completada", order.getId());
+                if (note != null) {
+                    assignment.setNotes(note);
+                }
             }
             case FAILED -> {
-                order.setStatus(OrderStatus.PENDING);
+                // El cliente ya lo había confirmado: queda listo para otro intento
+                order.setStatus(OrderStatus.CONFIRMED);
+                assignment.setFailureReason(note);
                 assignment.setCompletedAt(Instant.now());
-                log.info("Pedido {} → PENDING (entrega fallida, disponible para reasignar)", order.getId());
             }
             default -> {
-                /* ASSIGNED ya fue manejado */ }
+            }
         }
-
-        assignment = deliveryRepository.save(assignment);
-        log.info("Entrega ID: {} cambió de {} → {}", id, currentStatus, newStatus);
-        return DeliveryAssignmentResponse.fromEntity(assignment);
+        return deliveryRepository.save(assignment);
     }
 
-    // ── Mis entregas (repartidor logueado) ──────────────────────────────────
+    // ── Mis entregas (repartidor con usuario en la app) ─────────────────────
 
     @Transactional(readOnly = true)
     public Page<DeliveryAssignmentResponse> getMyAssignments(DeliveryStatus status, Pageable pageable) {
         User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        log.info("Listando entregas del repartidor: {} | status: {}", currentUser.getFullName(), status);
-
-        Page<DeliveryAssignment> page;
-        if (status != null) {
-            page = deliveryRepository.findByStatusAndDeliveryUserId(status, currentUser.getId(), pageable);
-        } else {
-            page = deliveryRepository.findByDeliveryUserId(currentUser.getId(), pageable);
-        }
-
-        return page.map(DeliveryAssignmentResponse::fromEntity);
+        Carrier carrier = carrierRepository.findByUserId(currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Tu usuario no está vinculado a ningún repartidor"));
+        return deliveryRepository.search(status, null, carrier.getId(), pageable)
+                .map(DeliveryAssignmentResponse::fromEntity);
     }
-
-    // ── Helper ──────────────────────────────────────────────────────────────
 
     private DeliveryAssignment findAssignmentOrThrow(UUID id) {
         return deliveryRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.warn("Asignación no encontrada con ID: {}", id);
-                    return new ResourceNotFoundException("Asignación no encontrada con ID: " + id);
-                });
+                .orElseThrow(() -> new ResourceNotFoundException("Entrega no encontrada con ID: " + id));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

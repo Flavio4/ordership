@@ -7,6 +7,7 @@ import lombok.*;
 import java.time.Instant;
 import java.util.UUID;
 
+/** Un intento de entrega de un pedido. Si falla, el pedido puede tener otro intento con otro repartidor. */
 @Entity
 @Table(name = "delivery_assignments")
 @Getter
@@ -20,16 +21,17 @@ public class DeliveryAssignment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "order_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "delivery_user_id", nullable = false)
-    private User deliveryUser;
+    @JoinColumn(name = "carrier_id", nullable = false)
+    private Carrier carrier;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "zone_id", nullable = false)
+    // Zona de la dirección del pedido; null en envíos por courier sin dirección zonificada
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "zone_id")
     private Zone zone;
 
     @Enumerated(EnumType.STRING)
@@ -40,6 +42,9 @@ public class DeliveryAssignment {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(columnDefinition = "TEXT")
+    private String failureReason;
+
     @Column(nullable = false, updatable = false)
     private Instant assignedAt;
 
@@ -48,5 +53,9 @@ public class DeliveryAssignment {
     @PrePersist
     protected void onCreate() {
         this.assignedAt = Instant.now();
+    }
+
+    public boolean isActive() {
+        return status == DeliveryStatus.ASSIGNED || status == DeliveryStatus.IN_TRANSIT;
     }
 }
