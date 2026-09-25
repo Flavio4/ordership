@@ -58,7 +58,7 @@ public class ProductController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
-    @Operation(summary = "Actualizar producto", description = "Actualiza un producto existente")
+    @Operation(summary = "Actualizar producto", description = "Actualiza los campos enviados (los null se ignoran). El stock no se modifica acá: usar PATCH /{id}/stock")
     public ResponseEntity<ProductResponse> updateProduct(@PathVariable UUID id,
             @RequestBody ProductUpdateRequest request) {
         return ResponseEntity.ok(productService.updateProduct(id, request));
@@ -67,7 +67,7 @@ public class ProductController {
     @PatchMapping("/{id}/stock")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @Operation(summary = "Ajustar stock", description = "Suma (delta positivo) o resta (delta negativo) unidades al stock actual. "
-            + "Usar esto en lugar de enviar stock en el PUT, que reemplaza el valor y puede pisar ventas recientes")
+            + "Se aplica sobre el valor actual de la base, así no pisa ventas de Shopify recientes")
     public ResponseEntity<ProductResponse> adjustStock(@PathVariable UUID id,
             @Valid @RequestBody StockAdjustmentRequest request) {
         return ResponseEntity.ok(productService.adjustStock(id, request.delta()));

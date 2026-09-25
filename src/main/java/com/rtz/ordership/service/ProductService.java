@@ -102,8 +102,6 @@ public class ProductService {
             product.setCurrency(request.currency());
         if (request.active() != null)
             product.setActive(request.active());
-        if (request.stock() != null)
-            product.setStock(request.stock());
         if (request.shopifySku() != null) {
             if (!request.shopifySku().equals(product.getShopifySku())
                     && productRepository.existsByShopifySku(request.shopifySku())) {
