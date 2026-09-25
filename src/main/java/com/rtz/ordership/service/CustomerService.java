@@ -10,6 +10,7 @@ import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerRepository;
 import com.rtz.ordership.util.PhoneNumbers;
+import com.rtz.ordership.util.SearchPatterns;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,17 +32,12 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
-    public Page<CustomerDetailResponse> getAllCustomers(String name, Pageable pageable) {
-        log.info("Listando clientes activos paginados | Filtro nombre: {}", name);
+    public Page<CustomerDetailResponse> getAllCustomers(String query, Pageable pageable) {
+        log.info("Listando clientes activos paginados | query: {}", query);
 
-        Page<Customer> pageResult;
-        if (name != null && !name.trim().isEmpty()) {
-            pageResult = customerRepository.findByActiveTrueAndFullNameContainingIgnoreCase(name.trim(), pageable);
-        } else {
-            pageResult = customerRepository.findByActiveTrue(pageable);
-        }
-
-        Page<CustomerDetailResponse> customersPage = pageResult.map(CustomerDetailResponse::fromEntity);
+        Page<CustomerDetailResponse> customersPage = customerRepository
+                .searchActive(SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query), pageable)
+                .map(CustomerDetailResponse::fromEntity);
 
         log.info("Se encontraron {} clientes en la página actual (Total: {})",
                 customersPage.getNumberOfElements(), customersPage.getTotalElements());

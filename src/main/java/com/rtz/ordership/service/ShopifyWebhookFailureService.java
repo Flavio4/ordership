@@ -2,12 +2,16 @@ package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.response.ShopifyWebhookFailureResponse;
 import com.rtz.ordership.entity.ShopifyWebhookFailure;
+import com.rtz.ordership.entity.User;
+import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.ShopifyWebhookFailureRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Guarda los pedidos de Shopify que no se pudieron crear porque Shopify mandó datos incompletos
@@ -46,9 +50,30 @@ public class ShopifyWebhookFailureService {
                 shopifyOrderId, reason);
     }
 
-    public List<ShopifyWebhookFailureResponse> getFailures() {
-        return failureRepository.findAllByOrderByCreatedAtDesc().stream()
+    @Transactional(readOnly = true)
+    public List<ShopifyWebhookFailureResponse> getFailures(boolean resolved) {
+        List<ShopifyWebhookFailure> failures = resolved
+                ? failureRepository.findByResolvedAtIsNotNullOrderByCreatedAtDesc()
+                : failureRepository.findByResolvedAtIsNullOrderByCreatedAtDesc();
+        return failures.stream()
                 .map(ShopifyWebhookFailureResponse::fromEntity)
                 .toList();
+    }
+
+    @Transactional
+    public ShopifyWebhookFailureResponse resolve(UUID id, String note, User user) {
+        ShopifyWebhookFailure failure = failureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Fallo de Shopify no encontrado con ID: " + id));
+        if (failure.getResolvedAt() != null) {
+            throw new IllegalStateException("El fallo ya fue marcado como resuelto");
+        }
+
+        failure.setResolvedAt(Instant.now());
+        failure.setResolvedBy(user);
+        failure.setResolutionNote(note.trim());
+        failure = failureRepository.save(failure);
+        log.info("Fallo de Shopify {} (pedido {}) marcado como resuelto por {}",
+                id, failure.getShopifyOrderId(), user.getEmail());
+        return ShopifyWebhookFailureResponse.fromEntity(failure);
     }
 }

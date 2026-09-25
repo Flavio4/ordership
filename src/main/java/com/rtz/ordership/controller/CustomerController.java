@@ -37,11 +37,11 @@ public class CustomerController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
-    @Operation(summary = "Listar clientes", description = "Obtiene todos los clientes activos filtrados por paginación y nombre (opcional)")
+    @Operation(summary = "Listar clientes", description = "Obtiene los clientes activos paginados. query busca por nombre o teléfono (desde 6 dígitos, en formato local o internacional)")
     public ResponseEntity<Page<CustomerDetailResponse>> getAllCustomers(
-            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String query,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(customerService.getAllCustomers(name, pageable));
+        return ResponseEntity.ok(customerService.getAllCustomers(query, pageable));
     }
 
     @GetMapping("/{id}")

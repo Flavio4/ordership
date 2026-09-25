@@ -1,16 +1,19 @@
 package com.rtz.ordership.controller;
 
+import com.rtz.ordership.dto.request.ResolveWebhookFailureRequest;
 import com.rtz.ordership.dto.response.ShopifyWebhookFailureResponse;
+import com.rtz.ordership.entity.User;
 import com.rtz.ordership.service.ShopifyWebhookFailureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 // Fuera de /api/webhooks/shopify a propósito: esa ruta acepta POST sin autenticación.
 @RestController
@@ -29,8 +32,19 @@ public class ShopifyWebhookFailureController {
     @Operation(summary = "Listar fallos",
             description = "Pedidos de Shopify que no se crearon por datos incompletos (sin teléfono, ítem sin SKU, "
                     + "moneda no soportada), del más reciente al más antiguo. Incluye el payload original "
-                    + "para cargar el pedido a mano")
-    public ResponseEntity<List<ShopifyWebhookFailureResponse>> getFailures() {
-        return ResponseEntity.ok(failureService.getFailures());
+                    + "para cargar el pedido a mano. Por defecto solo los pendientes; resolved=true para ver los resueltos")
+    public ResponseEntity<List<ShopifyWebhookFailureResponse>> getFailures(
+            @RequestParam(defaultValue = "false") boolean resolved) {
+        return ResponseEntity.ok(failureService.getFailures(resolved));
+    }
+
+    @PatchMapping("/{id}/resolve")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Marcar fallo como resuelto",
+            description = "Marca el fallo como atendido con una nota (ej. \"cargado a mano\"). No crea el pedido")
+    public ResponseEntity<ShopifyWebhookFailureResponse> resolve(@PathVariable UUID id,
+            @Valid @RequestBody ResolveWebhookFailureRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(failureService.resolve(id, request.note(), user));
     }
 }

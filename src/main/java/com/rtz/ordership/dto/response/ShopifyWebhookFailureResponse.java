@@ -12,6 +12,9 @@ public record ShopifyWebhookFailureResponse(
         Integer attempts,
         Instant createdAt,
         Instant lastAttemptAt,
+        Instant resolvedAt,
+        String resolvedByName,
+        String resolutionNote,
         String payload) {
     public static ShopifyWebhookFailureResponse fromEntity(ShopifyWebhookFailure failure) {
         if (failure == null)
@@ -23,6 +26,9 @@ public record ShopifyWebhookFailureResponse(
                 failure.getAttempts(),
                 failure.getCreatedAt(),
                 failure.getLastAttemptAt(),
+                failure.getResolvedAt(),
+                failure.getResolvedBy() != null ? failure.getResolvedBy().getFullName() : null,
+                failure.getResolutionNote(),
                 failure.getPayload());
     }
 }

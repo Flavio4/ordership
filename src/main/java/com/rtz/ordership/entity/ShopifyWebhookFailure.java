@@ -39,6 +39,15 @@ public class ShopifyWebhookFailure {
     @Column(nullable = false)
     private Instant lastAttemptAt;
 
+    private Instant resolvedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resolved_by_user_id")
+    private User resolvedBy;
+
+    @Column(columnDefinition = "TEXT")
+    private String resolutionNote;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = Instant.now();

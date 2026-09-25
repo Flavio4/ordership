@@ -11,5 +11,7 @@ public interface ShopifyWebhookFailureRepository extends JpaRepository<ShopifyWe
 
     Optional<ShopifyWebhookFailure> findByShopifyOrderId(String shopifyOrderId);
 
-    List<ShopifyWebhookFailure> findAllByOrderByCreatedAtDesc();
+    List<ShopifyWebhookFailure> findByResolvedAtIsNullOrderByCreatedAtDesc();
+
+    List<ShopifyWebhookFailure> findByResolvedAtIsNotNullOrderByCreatedAtDesc();
 }
