@@ -57,18 +57,20 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("""
             SELECT COUNT(o) FROM Order o
             WHERE o.deliveryDate < :date
+              AND (:source IS NULL OR o.source = :source)
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
             """)
-    long countScheduledBefore(@Param("date") LocalDate date);
+    long countScheduledBefore(@Param("date") LocalDate date, @Param("source") OrderSource source);
 
     @Query("""
             SELECT COUNT(o) FROM Order o
             WHERE o.deliveryDate = :date
+              AND (:source IS NULL OR o.source = :source)
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
             """)
-    long countScheduledOn(@Param("date") LocalDate date);
+    long countScheduledOn(@Param("date") LocalDate date, @Param("source") OrderSource source);
 
     // Dashboard queries
     long countByStatusAndCreatedAtBetween(OrderStatus status, Instant from, Instant to);

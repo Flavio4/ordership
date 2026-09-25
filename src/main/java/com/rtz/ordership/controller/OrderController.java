@@ -64,8 +64,9 @@ public class OrderController {
     @Operation(summary = "Resumen de la agenda", description = "Cuántos pedidos programados están atrasados y cuántos son para hoy. "
             + "today lo manda la app (fecha del celular) para no depender de la zona horaria del servidor")
     public ResponseEntity<AgendaSummaryResponse> getAgendaSummary(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today) {
-        return ResponseEntity.ok(orderService.getAgendaSummary(today));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today,
+            @RequestParam(required = false) OrderSource source) {
+        return ResponseEntity.ok(orderService.getAgendaSummary(today, source));
     }
 
     @PatchMapping("/{id}/delivery-date")

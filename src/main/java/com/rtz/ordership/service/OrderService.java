@@ -367,10 +367,10 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public AgendaSummaryResponse getAgendaSummary(LocalDate today) {
+    public AgendaSummaryResponse getAgendaSummary(LocalDate today, OrderSource source) {
         return new AgendaSummaryResponse(
-                orderRepository.countScheduledBefore(today),
-                orderRepository.countScheduledOn(today));
+                orderRepository.countScheduledBefore(today, source),
+                orderRepository.countScheduledOn(today, source));
     }
 
     // ── Cancelar pedido + devolver stock ─────────────────────────────────────
