@@ -33,6 +33,21 @@ class SearchPatternsTest {
     }
 
     @Test
+    void orderNumberAcceptsThePrefixOrJustTheDigits() {
+        assertThat(SearchPatterns.orderNumber("P-1024")).isEqualTo(1024L);
+        assertThat(SearchPatterns.orderNumber(" p1024 ")).isEqualTo(1024L);
+        assertThat(SearchPatterns.orderNumber("1024")).isEqualTo(1024L);
+    }
+
+    @Test
+    void textThatIsNotAnOrderNumberIsNotSearchedAsOne() {
+        assertThat(SearchPatterns.orderNumber("#1488")).isNull();
+        assertThat(SearchPatterns.orderNumber("María")).isNull();
+        assertThat(SearchPatterns.orderNumber("0984620002")).isNull();
+        assertThat(SearchPatterns.orderNumber(null)).isNull();
+    }
+
+    @Test
     void shortNumbersAreNotSearchedAsPhones() {
         assertThat(SearchPatterns.phoneContainsLike("#1488")).isNull();
         assertThat(SearchPatterns.phoneContainsLike("María")).isNull();

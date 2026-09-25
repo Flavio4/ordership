@@ -77,7 +77,8 @@ public class OrderService {
                 status, deliveryDate, customerId, source, query);
 
         Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source,
-                SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query), pageable);
+                SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query),
+                SearchPatterns.orderNumber(query), pageable);
 
         Page<OrderResponse> result = page.map(OrderResponse::fromEntity);
         log.info("Se encontraron {} pedidos en la página (Total: {})",

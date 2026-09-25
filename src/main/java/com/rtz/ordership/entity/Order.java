@@ -6,6 +6,7 @@ import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Generated;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -26,6 +27,11 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    // Número propio (P-1024): lo asigna la secuencia de la base al insertar
+    @Generated
+    @Column(name = "order_number", insertable = false, updatable = false, nullable = false, unique = true)
+    private Long orderNumber;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false)
