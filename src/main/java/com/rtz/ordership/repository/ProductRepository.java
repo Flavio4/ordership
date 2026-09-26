@@ -20,12 +20,16 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             SELECT p FROM Product p
             WHERE p.active = :active
               AND (:needsReview IS NULL OR p.needsReview = :needsReview)
+              AND (:outOfStock IS NULL
+                   OR (:outOfStock = true AND p.stock <= 0)
+                   OR (:outOfStock = false AND p.stock > 0))
               AND (:textLike IS NULL
                    OR LOWER(p.name) LIKE :textLike
                    OR LOWER(p.shopifySku) LIKE :textLike)
             """)
     Page<Product> search(@Param("active") boolean active,
             @Param("needsReview") Boolean needsReview,
+            @Param("outOfStock") Boolean outOfStock,
             @Param("textLike") String textLike,
             Pageable pageable);
 

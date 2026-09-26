@@ -33,13 +33,15 @@ public class ProductController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
     @Operation(summary = "Listar productos", description = "Lista productos paginados. Por defecto solo los activos (active=false para ver los desactivados). "
-            + "needsReview=true filtra los creados desde Shopify a los que falta el precio de compra; query busca por nombre o SKU")
+            + "needsReview=true filtra los creados desde Shopify a los que falta el precio de compra; "
+            + "outOfStock=true los que tienen stock 0 o negativo; query busca por nombre o SKU")
     public ResponseEntity<Page<ProductResponse>> getAllProducts(
             @RequestParam(defaultValue = "true") boolean active,
             @RequestParam(required = false) Boolean needsReview,
+            @RequestParam(required = false) Boolean outOfStock,
             @RequestParam(required = false) String query,
             @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(productService.getAllProducts(active, needsReview, query, pageable));
+        return ResponseEntity.ok(productService.getAllProducts(active, needsReview, outOfStock, query, pageable));
     }
 
     @GetMapping("/{id}")
@@ -60,7 +62,7 @@ public class ProductController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @Operation(summary = "Actualizar producto", description = "Actualiza los campos enviados (los null se ignoran). El stock no se modifica acá: usar PATCH /{id}/stock")
     public ResponseEntity<ProductResponse> updateProduct(@PathVariable UUID id,
-            @RequestBody ProductUpdateRequest request) {
+            @Valid @RequestBody ProductUpdateRequest request) {
         return ResponseEntity.ok(productService.updateProduct(id, request));
     }
 
