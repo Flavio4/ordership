@@ -1,5 +1,6 @@
 package com.rtz.ordership.repository;
 
+import com.rtz.ordership.dto.response.CustomerOrderStats;
 import com.rtz.ordership.entity.Order;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
@@ -12,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -87,4 +89,14 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     @Query("SELECT o.status, COUNT(o) FROM Order o WHERE o.createdAt BETWEEN :from AND :to GROUP BY o.status")
     List<Object[]> countByStatusGroupedAndCreatedAtBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("""
+            SELECT new com.rtz.ordership.dto.response.CustomerOrderStats(
+                o.customer.id, COUNT(o), COALESCE(SUM(o.amountToCollect), 0), MAX(o.createdAt))
+            FROM Order o
+            WHERE o.customer.id IN :customerIds
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            GROUP BY o.customer.id
+            """)
+    List<CustomerOrderStats> orderStatsByCustomer(@Param("customerIds") Collection<UUID> customerIds);
 }

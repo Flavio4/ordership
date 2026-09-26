@@ -55,10 +55,10 @@ public class CustomerAddressService {
         CustomerAddress address = CustomerAddress.builder()
                 .customer(customer)
                 .zone(zone)
-                .label(request.label())
-                .street(request.street())
-                .city(request.city())
-                .description(request.description())
+                .label(blankToNull(request.label()))
+                .street(blankToNull(request.street()))
+                .city(blankToNull(request.city()))
+                .description(blankToNull(request.description()))
                 .latitude(request.latitude())
                 .longitude(request.longitude())
                 .mapUrl(blankToNull(request.mapUrl()))
@@ -90,14 +90,15 @@ public class CustomerAddressService {
             address.setZone(zone);
         }
 
+        // Vacío borra el campo; null lo deja como está
         if (request.label() != null)
-            address.setLabel(request.label());
+            address.setLabel(blankToNull(request.label()));
         if (request.street() != null)
-            address.setStreet(request.street());
+            address.setStreet(blankToNull(request.street()));
         if (request.city() != null)
-            address.setCity(request.city());
+            address.setCity(blankToNull(request.city()));
         if (request.description() != null)
-            address.setDescription(request.description());
+            address.setDescription(blankToNull(request.description()));
         if (request.latitude() != null)
             address.setLatitude(request.latitude());
         if (request.longitude() != null)
@@ -126,9 +127,21 @@ public class CustomerAddressService {
             throw new ResourceNotFoundException("Dirección no encontrada para este cliente");
         }
 
+        boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
         address.setActive(false);
+        address.setIsDefault(false);
         addressRepository.save(address);
         log.info("Dirección desactivada - id: {}", address.getId());
+
+        // Si era la principal, pasa a serlo la más reciente de las que quedan
+        if (wasDefault) {
+            addressRepository.findFirstByCustomerIdAndActiveTrueOrderByCreatedAtDesc(customerId)
+                    .ifPresent(next -> {
+                        next.setIsDefault(true);
+                        addressRepository.save(next);
+                        log.info("Dirección {} pasa a ser la principal del cliente {}", next.getId(), customerId);
+                    });
+        }
     }
 
     private CustomerAddress findAddressOrThrow(UUID id) {

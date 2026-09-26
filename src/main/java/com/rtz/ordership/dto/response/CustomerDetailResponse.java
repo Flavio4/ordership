@@ -2,6 +2,7 @@ package com.rtz.ordership.dto.response;
 
 import com.rtz.ordership.entity.Customer;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -14,8 +15,11 @@ public record CustomerDetailResponse(
         String notes,
         Boolean active,
         Instant createdAt,
-        List<CustomerAddressResponse> addresses) {
-    public static CustomerDetailResponse fromEntity(Customer customer) {
+        List<CustomerAddressResponse> addresses,
+        long orderCount,
+        BigDecimal totalSpent,
+        Instant lastOrderAt) {
+    public static CustomerDetailResponse fromEntity(Customer customer, CustomerOrderStats stats) {
         return new CustomerDetailResponse(
                 customer.getId(),
                 customer.getFullName(),
@@ -27,6 +31,9 @@ public record CustomerDetailResponse(
                 customer.getAddresses().stream()
                         .filter(addr -> addr.getActive()) // solo activas
                         .map(CustomerAddressResponse::fromEntity)
-                        .toList());
+                        .toList(),
+                stats.orderCount(),
+                stats.totalSpent(),
+                stats.lastOrderAt());
     }
 }

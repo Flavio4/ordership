@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -65,6 +66,50 @@ class CustomerAddressServiceDefaultTest {
                 new CustomerAddressUpdateRequest(null, null, null, null, null, null, null, null, true, null));
 
         verify(addressRepository).unsetOtherDefaults(customer.getId(), address.getId());
+    }
+
+    @Test
+    void deletingTheDefaultAddressPromotesTheMostRecentOne() {
+        CustomerAddress current = address(true);
+        CustomerAddress next = address(false);
+        when(addressRepository.findById(current.getId())).thenReturn(Optional.of(current));
+        when(addressRepository.findFirstByCustomerIdAndActiveTrueOrderByCreatedAtDesc(customer.getId()))
+                .thenReturn(Optional.of(next));
+
+        service.deactivateAddress(customer.getId(), current.getId());
+
+        assertThat(current.getActive()).isFalse();
+        assertThat(current.getIsDefault()).isFalse();
+        assertThat(next.getIsDefault()).isTrue();
+    }
+
+    @Test
+    void deletingAnotherAddressKeepsTheDefault() {
+        CustomerAddress other = address(false);
+        when(addressRepository.findById(other.getId())).thenReturn(Optional.of(other));
+
+        service.deactivateAddress(customer.getId(), other.getId());
+
+        verify(addressRepository, never()).findFirstByCustomerIdAndActiveTrueOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void emptyTextsClearTheFieldAndNullKeepsIt() {
+        CustomerAddress address = address(false);
+        address.setCity("Asunción");
+        address.setDescription("Portón negro");
+        when(addressRepository.findById(address.getId())).thenReturn(Optional.of(address));
+
+        service.updateAddress(customer.getId(), address.getId(),
+                new CustomerAddressUpdateRequest(null, null, null, null, " ", null, null, null, null, null));
+
+        assertThat(address.getCity()).isEqualTo("Asunción");
+        assertThat(address.getDescription()).isNull();
+    }
+
+    private CustomerAddress address(boolean isDefault) {
+        return CustomerAddress.builder()
+                .id(UUID.randomUUID()).customer(customer).zone(zone).isDefault(isDefault).active(true).build();
     }
 
     private CustomerAddressRequest request(boolean isDefault) {

@@ -4,11 +4,13 @@ import com.rtz.ordership.dto.request.CustomerRequest;
 import com.rtz.ordership.dto.request.CustomerUpdateRequest;
 import com.rtz.ordership.dto.request.CustomerWithAddressRequest;
 import com.rtz.ordership.dto.response.CustomerDetailResponse;
+import com.rtz.ordership.dto.response.CustomerOrderStats;
 import com.rtz.ordership.dto.response.CustomerResponse;
 import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerRepository;
+import com.rtz.ordership.repository.OrderRepository;
 import com.rtz.ordership.util.PhoneNumbers;
 import com.rtz.ordership.util.SearchPatterns;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +19,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -25,19 +31,24 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final CustomerAddressService addressService;
+    private final OrderRepository orderRepository;
 
-    public CustomerService(CustomerRepository customerRepository, CustomerAddressService addressService) {
+    public CustomerService(CustomerRepository customerRepository, CustomerAddressService addressService,
+            OrderRepository orderRepository) {
         this.customerRepository = customerRepository;
         this.addressService = addressService;
+        this.orderRepository = orderRepository;
     }
 
     @Transactional(readOnly = true)
     public Page<CustomerDetailResponse> getAllCustomers(String query, Pageable pageable) {
         log.info("Listando clientes activos paginados | query: {}", query);
 
-        Page<CustomerDetailResponse> customersPage = customerRepository
-                .searchActive(SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query), pageable)
-                .map(CustomerDetailResponse::fromEntity);
+        Page<Customer> customers = customerRepository
+                .searchActive(SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query), pageable);
+        Map<UUID, CustomerOrderStats> stats = orderStats(customers.map(Customer::getId).getContent());
+        Page<CustomerDetailResponse> customersPage = customers.map(customer -> CustomerDetailResponse.fromEntity(
+                customer, stats.getOrDefault(customer.getId(), CustomerOrderStats.empty(customer.getId()))));
 
         log.info("Se encontraron {} clientes en la página actual (Total: {})",
                 customersPage.getNumberOfElements(), customersPage.getTotalElements());
@@ -54,7 +65,16 @@ public class CustomerService {
     public CustomerDetailResponse getCustomerDetail(UUID id) {
         log.info("Obteniendo detalle completo del cliente ID: {}", id);
         Customer customer = findCustomerOrThrow(id);
-        return CustomerDetailResponse.fromEntity(customer);
+        return CustomerDetailResponse.fromEntity(customer,
+                orderStats(List.of(id)).getOrDefault(id, CustomerOrderStats.empty(id)));
+    }
+
+    private Map<UUID, CustomerOrderStats> orderStats(List<UUID> customerIds) {
+        if (customerIds.isEmpty()) {
+            return Map.of();
+        }
+        return orderRepository.orderStatsByCustomer(customerIds).stream()
+                .collect(Collectors.toMap(CustomerOrderStats::customerId, Function.identity()));
     }
 
     @Transactional
@@ -68,10 +88,10 @@ public class CustomerService {
         }
 
         Customer customer = Customer.builder()
-                .fullName(request.fullName())
+                .fullName(request.fullName().trim())
                 .phone(phone)
-                .email(request.email())
-                .notes(request.notes())
+                .email(blankToNull(request.email()))
+                .notes(blankToNull(request.notes()))
                 .active(true)
                 .build();
 
@@ -108,12 +128,17 @@ public class CustomerService {
             customer.setPhone(phone);
         }
 
-        if (request.fullName() != null)
-            customer.setFullName(request.fullName());
+        if (request.fullName() != null) {
+            if (request.fullName().isBlank()) {
+                throw new IllegalArgumentException("El nombre completo es obligatorio");
+            }
+            customer.setFullName(request.fullName().trim());
+        }
+        // Vacío borra el campo; null lo deja como está
         if (request.email() != null)
-            customer.setEmail(request.email());
+            customer.setEmail(blankToNull(request.email()));
         if (request.notes() != null)
-            customer.setNotes(request.notes());
+            customer.setNotes(blankToNull(request.notes()));
         if (request.active() != null)
             customer.setActive(request.active());
 
@@ -129,6 +154,10 @@ public class CustomerService {
         customer.setActive(false);
         customerRepository.save(customer);
         log.info("Cliente desactivado - id: {}, nombre: {}", customer.getId(), customer.getFullName());
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     protected Customer findCustomerOrThrow(UUID id) {

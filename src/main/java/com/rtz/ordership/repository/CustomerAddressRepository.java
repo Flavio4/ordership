@@ -7,11 +7,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface CustomerAddressRepository extends JpaRepository<CustomerAddress, UUID> {
 
     List<CustomerAddress> findByCustomerIdAndActiveTrue(UUID customerId);
+
+    Optional<CustomerAddress> findFirstByCustomerIdAndActiveTrueOrderByCreatedAtDesc(UUID customerId);
 
     @Modifying(flushAutomatically = true)
     @Query("""
