@@ -10,7 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -77,18 +76,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             """)
     long countScheduledOn(@Param("date") LocalDate date, @Param("source") OrderSource source);
 
-    // Dashboard queries
-    long countByStatusAndCreatedAtBetween(OrderStatus status, Instant from, Instant to);
+    // Dashboard
+    long countByStatusInAndSource(Collection<OrderStatus> statuses, OrderSource source);
 
-    long countByStatus(OrderStatus status);
-
-    // Ingresos = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo
-    @Query("SELECT COALESCE(SUM(o.amountToCollect), 0) FROM Order o WHERE o.createdAt BETWEEN :from AND :to AND o.status <> :excludedStatus")
-    BigDecimal sumAmountToCollectByCreatedAtBetween(@Param("from") Instant from, @Param("to") Instant to,
-            @Param("excludedStatus") OrderStatus excludedStatus);
-
-    @Query("SELECT o.status, COUNT(o) FROM Order o WHERE o.createdAt BETWEEN :from AND :to GROUP BY o.status")
-    List<Object[]> countByStatusGroupedAndCreatedAtBetween(@Param("from") Instant from, @Param("to") Instant to);
+    // Ventas = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo; sin los cancelados
+    @Query("""
+            SELECT o.createdAt, o.amountToCollect FROM Order o
+            WHERE o.createdAt >= :from AND o.source = :source
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            """)
+    List<Object[]> salesSince(@Param("from") Instant from, @Param("source") OrderSource source);
 
     @Query("""
             SELECT new com.rtz.ordership.dto.response.CustomerOrderStats(

@@ -15,8 +15,11 @@ public record ShopifyWebhookFailureResponse(
         Instant resolvedAt,
         String resolvedByName,
         String resolutionNote,
+        String adminUrl,
+        // null si el payload no se pudo leer
+        ShopifyOrderSummary order,
         String payload) {
-    public static ShopifyWebhookFailureResponse fromEntity(ShopifyWebhookFailure failure) {
+    public static ShopifyWebhookFailureResponse fromEntity(ShopifyWebhookFailure failure, ShopifyOrderSummary order) {
         if (failure == null)
             return null;
         return new ShopifyWebhookFailureResponse(
@@ -29,6 +32,8 @@ public record ShopifyWebhookFailureResponse(
                 failure.getResolvedAt(),
                 failure.getResolvedBy() != null ? failure.getResolvedBy().getFullName() : null,
                 failure.getResolutionNote(),
+                failure.getAdminUrl(),
+                order,
                 failure.getPayload());
     }
 }

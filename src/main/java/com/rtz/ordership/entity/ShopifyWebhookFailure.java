@@ -29,6 +29,9 @@ public class ShopifyWebhookFailure {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String reason;
 
+    // Link al pedido en Shopify Admin; null si no se pudo armar
+    private String adminUrl;
+
     @Builder.Default
     @Column(nullable = false)
     private Integer attempts = 1;

@@ -15,4 +15,6 @@ public interface ShopifyWebhookFailureRepository extends JpaRepository<ShopifyWe
     Page<ShopifyWebhookFailure> findByResolvedAtIsNull(Pageable pageable);
 
     Page<ShopifyWebhookFailure> findByResolvedAtIsNotNull(Pageable pageable);
+
+    long countByResolvedAtIsNull();
 }

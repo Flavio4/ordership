@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -23,12 +24,14 @@ import java.util.UUID;
 public class ShopifyWebhookFailureService {
 
     private final ShopifyWebhookFailureRepository failureRepository;
+    private final ShopifyOrderReader reader;
 
-    public ShopifyWebhookFailureService(ShopifyWebhookFailureRepository failureRepository) {
+    public ShopifyWebhookFailureService(ShopifyWebhookFailureRepository failureRepository, ObjectMapper objectMapper) {
         this.failureRepository = failureRepository;
+        this.reader = new ShopifyOrderReader(objectMapper);
     }
 
-    public void recordFailure(String shopifyOrderId, String payload, String reason) {
+    public void recordFailure(String shopifyOrderId, String payload, String reason, String adminUrl) {
         // Si Shopify reenvía un pedido que ya falló, se actualiza ese mismo registro
         ShopifyWebhookFailure failure = (shopifyOrderId == null ? null
                 : failureRepository.findByShopifyOrderId(shopifyOrderId).orElse(null));
@@ -38,10 +41,14 @@ public class ShopifyWebhookFailureService {
                     .shopifyOrderId(shopifyOrderId)
                     .payload(payload)
                     .reason(reason)
+                    .adminUrl(adminUrl)
                     .build();
         } else {
             failure.setPayload(payload);
             failure.setReason(reason);
+            if (adminUrl != null) {
+                failure.setAdminUrl(adminUrl);
+            }
             failure.setAttempts(failure.getAttempts() + 1);
             failure.setLastAttemptAt(Instant.now());
         }
@@ -56,7 +63,11 @@ public class ShopifyWebhookFailureService {
         Page<ShopifyWebhookFailure> failures = resolved
                 ? failureRepository.findByResolvedAtIsNotNull(pageable)
                 : failureRepository.findByResolvedAtIsNull(pageable);
-        return failures.map(ShopifyWebhookFailureResponse::fromEntity);
+        return failures.map(this::toResponse);
+    }
+
+    public long countPending() {
+        return failureRepository.countByResolvedAtIsNull();
     }
 
     @Transactional
@@ -73,6 +84,10 @@ public class ShopifyWebhookFailureService {
         failure = failureRepository.save(failure);
         log.info("Fallo de Shopify {} (pedido {}) marcado como resuelto por {}",
                 id, failure.getShopifyOrderId(), user.getEmail());
-        return ShopifyWebhookFailureResponse.fromEntity(failure);
+        return toResponse(failure);
+    }
+
+    private ShopifyWebhookFailureResponse toResponse(ShopifyWebhookFailure failure) {
+        return ShopifyWebhookFailureResponse.fromEntity(failure, reader.summarize(failure.getPayload()));
     }
 }

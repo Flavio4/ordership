@@ -37,6 +37,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("UPDATE Product p SET p.stock = p.stock + :delta WHERE p.id = :id")
     int adjustStock(@Param("id") UUID id, @Param("delta") int delta);
 
+    long countByActiveTrueAndNeedsReviewTrue();
+
     boolean existsByName(String name);
 
     boolean existsByShopifySku(String shopifySku);

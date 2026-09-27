@@ -28,6 +28,4 @@ public interface DeliveryAssignmentRepository extends JpaRepository<DeliveryAssi
     boolean existsByOrderIdAndStatusIn(UUID orderId, Collection<DeliveryStatus> statuses);
 
     List<DeliveryAssignment> findByOrderIdAndStatusIn(UUID orderId, Collection<DeliveryStatus> statuses);
-
-    List<DeliveryAssignment> findByStatusIn(Collection<DeliveryStatus> statuses);
 }

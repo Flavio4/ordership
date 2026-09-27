@@ -266,7 +266,7 @@ class ShopifyWebhookServiceTest {
 
         service.receiveOrderCreated(onlyExtra, null);
 
-        verify(failureService).recordFailure(eq("1500"), eq(onlyExtra), contains("solo extras ignorados"));
+        verify(failureService).recordFailure(eq("1500"), eq(onlyExtra), contains("solo extras ignorados"), isNull());
     }
 
     @Test
@@ -275,7 +275,7 @@ class ShopifyWebhookServiceTest {
 
         service.receiveOrderCreated(withoutSku, null);
 
-        verify(failureService).recordFailure(eq("555"), eq(withoutSku), contains("no tiene SKU"));
+        verify(failureService).recordFailure(eq("555"), eq(withoutSku), contains("no tiene SKU"), isNull());
         verify(transactionManager).rollback(any());
         verify(orderService, never()).createOrderFromShopify(any(), any(), any());
     }
@@ -286,7 +286,7 @@ class ShopifyWebhookServiceTest {
 
         service.receiveOrderCreated(inPesos, null);
 
-        verify(failureService).recordFailure(eq("555"), eq(inPesos), contains("moneda no soportada: ARS"));
+        verify(failureService).recordFailure(eq("555"), eq(inPesos), contains("moneda no soportada: ARS"), isNull());
     }
 
     @Test
@@ -295,14 +295,24 @@ class ShopifyWebhookServiceTest {
 
         service.receiveOrderCreated(withoutPhone, null);
 
-        verify(failureService).recordFailure(eq("555"), eq(withoutPhone), contains("teléfono"));
+        verify(failureService).recordFailure(eq("555"), eq(withoutPhone), contains("teléfono"), isNull());
+    }
+
+    @Test
+    void theFailureKeepsTheLinkToTheOrderInShopify() {
+        String withoutPhone = PAYLOAD.replace("\"phone\":\"+595981000999\",", "");
+
+        service.receiveOrderCreated(withoutPhone, "mitienda.myshopify.com");
+
+        verify(failureService).recordFailure(eq("555"), eq(withoutPhone), contains("teléfono"),
+                eq("https://admin.shopify.com/store/mitienda/orders/555"));
     }
 
     @Test
     void unreadablePayloadIsRecordedWithoutOrderId() {
         service.receiveOrderCreated("esto no es json", null);
 
-        verify(failureService).recordFailure(isNull(), eq("esto no es json"), contains("Payload de Shopify inválido"));
+        verify(failureService).recordFailure(isNull(), eq("esto no es json"), contains("Payload de Shopify inválido"), isNull());
     }
 
     @Test

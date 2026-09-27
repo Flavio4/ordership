@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.*;
 class ShopifyWebhookFailureServiceTest {
 
     private static final String PAYLOAD = "{\"id\":555}";
+    private static final String ADMIN_URL = "https://admin.shopify.com/store/mitienda/orders/555";
 
     private ShopifyWebhookFailureRepository failureRepository;
     private ShopifyWebhookFailureService service;
@@ -33,18 +35,52 @@ class ShopifyWebhookFailureServiceTest {
     void setUp() {
         failureRepository = mock(ShopifyWebhookFailureRepository.class);
         when(failureRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        service = new ShopifyWebhookFailureService(failureRepository);
+        service = new ShopifyWebhookFailureService(failureRepository, JsonMapper.builder().build());
+    }
+
+    @Test
+    void theResponseSummarizesTheOrderFromThePayload() {
+        String payload = """
+                {"id":555,"name":"#1490","total_price":"329000.00","currency":"PYG",
+                 "note_attributes":[{"name":"Nombre","value":"Ana"},{"name":"Apellido","value":"Rojas"},
+                                    {"name":"Dirección","value":"Palma 123"},{"name":"Ciudad","value":"Asunción"}],
+                 "line_items":[{"title":"Cúrcuma","variant_title":"Default Title","quantity":2},
+                               {"title":"Miel","variant_title":"500 g","quantity":1}]}""";
+        ShopifyWebhookFailure failure = ShopifyWebhookFailure.builder()
+                .id(UUID.randomUUID()).shopifyOrderId("555").payload(payload).reason("Sin teléfono")
+                .adminUrl(ADMIN_URL).build();
+        when(failureRepository.findByResolvedAtIsNull(any())).thenReturn(new PageImpl<>(List.of(failure)));
+
+        ShopifyWebhookFailureResponse response = service.getFailures(false, PageRequest.of(0, 20)).getContent().get(0);
+
+        assertThat(response.adminUrl()).isEqualTo(ADMIN_URL);
+        assertThat(response.order().orderName()).isEqualTo("#1490");
+        assertThat(response.order().customerName()).isEqualTo("Ana Rojas");
+        assertThat(response.order().phone()).isNull();
+        assertThat(response.order().totalPrice()).isEqualByComparingTo("329000");
+        assertThat(response.order().items()).containsExactly("2 × Cúrcuma", "1 × Miel - 500 g");
+        assertThat(response.order().shippingAddress()).isEqualTo("Palma 123, Asunción");
+    }
+
+    @Test
+    void anUnreadablePayloadHasNoSummary() {
+        ShopifyWebhookFailure failure = ShopifyWebhookFailure.builder()
+                .id(UUID.randomUUID()).payload("esto no es json").reason("Payload inválido").build();
+        when(failureRepository.findByResolvedAtIsNull(any())).thenReturn(new PageImpl<>(List.of(failure)));
+
+        assertThat(service.getFailures(false, PageRequest.of(0, 20)).getContent().get(0).order()).isNull();
     }
 
     @Test
     void newFailureIsRecorded() {
         when(failureRepository.findByShopifyOrderId("555")).thenReturn(Optional.empty());
 
-        service.recordFailure("555", PAYLOAD, "Sin teléfono");
+        service.recordFailure("555", PAYLOAD, "Sin teléfono", ADMIN_URL);
 
         ArgumentCaptor<ShopifyWebhookFailure> saved = ArgumentCaptor.forClass(ShopifyWebhookFailure.class);
         verify(failureRepository).save(saved.capture());
         assertThat(saved.getValue().getShopifyOrderId()).isEqualTo("555");
+        assertThat(saved.getValue().getAdminUrl()).isEqualTo(ADMIN_URL);
         assertThat(saved.getValue().getPayload()).isEqualTo(PAYLOAD);
         assertThat(saved.getValue().getReason()).isEqualTo("Sin teléfono");
         assertThat(saved.getValue().getAttempts()).isEqualTo(1);
@@ -60,7 +96,7 @@ class ShopifyWebhookFailureServiceTest {
                 .build();
         when(failureRepository.findByShopifyOrderId("555")).thenReturn(Optional.of(existing));
 
-        service.recordFailure("555", PAYLOAD, "Ítem sin SKU");
+        service.recordFailure("555", PAYLOAD, "Ítem sin SKU", null);
 
         verify(failureRepository).save(existing);
         assertThat(existing.getAttempts()).isEqualTo(2);
@@ -137,7 +173,7 @@ class ShopifyWebhookFailureServiceTest {
 
     @Test
     void failureWithoutOrderIdIsNeverDeduplicated() {
-        service.recordFailure(null, "esto no es json", "Payload inválido");
+        service.recordFailure(null, "esto no es json", "Payload inválido", null);
 
         verify(failureRepository, never()).findByShopifyOrderId(any());
         verify(failureRepository).save(any());
