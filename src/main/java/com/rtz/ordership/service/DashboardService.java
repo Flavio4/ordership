@@ -2,7 +2,6 @@ package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.response.DashboardResponse;
 import com.rtz.ordership.dto.response.DashboardResponse.DailySales;
-import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.repository.OrderRepository;
 import com.rtz.ordership.repository.ProductRepository;
@@ -58,7 +57,7 @@ public class DashboardService {
             ordersByDay.put(day, new long[1]);
             revenueByDay.put(day, BigDecimal.ZERO);
         }
-        for (Object[] sale : orderRepository.salesSince(from, OrderSource.SHOPIFY)) {
+        for (Object[] sale : orderRepository.salesSince(from)) {
             LocalDate day = ((Instant) sale[0]).atZone(zone).toLocalDate();
             if (ordersByDay.containsKey(day)) {
                 ordersByDay.get(day)[0]++;
@@ -80,11 +79,10 @@ public class DashboardService {
                 ordersByDay.get(today)[0],
                 revenueByDay.get(today),
                 revenueWeek,
-                orderRepository.countByStatusInAndSource(List.of(OrderStatus.PENDING), OrderSource.SHOPIFY),
-                orderRepository.countByStatusInAndSource(
-                        List.of(OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT), OrderSource.SHOPIFY),
-                orderRepository.countScheduledOn(today, OrderSource.SHOPIFY),
-                orderRepository.countScheduledBefore(today, OrderSource.SHOPIFY),
+                orderRepository.countByStatusIn(List.of(OrderStatus.PENDING)),
+                orderRepository.countByStatusIn(List.of(OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT)),
+                orderRepository.countScheduledOn(today, null),
+                orderRepository.countScheduledBefore(today, null),
                 productRepository.countByActiveTrueAndNeedsReviewTrue(),
                 failureRepository.countByResolvedAtIsNull(),
                 lastSevenDays);

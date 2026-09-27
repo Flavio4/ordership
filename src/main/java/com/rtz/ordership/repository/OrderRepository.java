@@ -77,15 +77,15 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     long countScheduledOn(@Param("date") LocalDate date, @Param("source") OrderSource source);
 
     // Dashboard
-    long countByStatusInAndSource(Collection<OrderStatus> statuses, OrderSource source);
+    long countByStatusIn(Collection<OrderStatus> statuses);
 
     // Ventas = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo; sin los cancelados
     @Query("""
             SELECT o.createdAt, o.amountToCollect FROM Order o
-            WHERE o.createdAt >= :from AND o.source = :source
+            WHERE o.createdAt >= :from
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
             """)
-    List<Object[]> salesSince(@Param("from") Instant from, @Param("source") OrderSource source);
+    List<Object[]> salesSince(@Param("from") Instant from);
 
     @Query("""
             SELECT new com.rtz.ordership.dto.response.CustomerOrderStats(

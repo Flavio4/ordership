@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Resumen para la pantalla de inicio. Todo es de Shopify y "hoy" es el día en Paraguay (app.timezone).
+ * Resumen para la pantalla de inicio: pedidos de Shopify y manuales; "hoy" es el día en Paraguay (app.timezone).
  * Ventas = amountToCollect de los pedidos no cancelados, por día de creación.
  */
 public record DashboardResponse(

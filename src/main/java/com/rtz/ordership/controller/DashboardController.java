@@ -24,7 +24,7 @@ public class DashboardController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @Operation(summary = "Obtener dashboard",
-            description = "Resumen de los pedidos de Shopify para la pantalla de inicio: ventas de hoy, de la semana y de "
+            description = "Resumen de los pedidos (Shopify y manuales) para la pantalla de inicio: ventas de hoy, de la semana y de "
                     + "los últimos 7 días, y lo que hay para hacer (pendientes, entregas de hoy y atrasadas, productos "
                     + "por completar, fallas de Shopify). \"Hoy\" es el día en Paraguay")
     public ResponseEntity<DashboardResponse> getDashboard() {

@@ -5,6 +5,7 @@ import com.rtz.ordership.dto.request.DeliveryStatusUpdateRequest;
 import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryDateRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryRequest;
+import com.rtz.ordership.dto.request.OrderItemsUpdateRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
@@ -86,9 +87,23 @@ public class OrderController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
-    @Operation(summary = "Crear pedido", description = "Crea un pedido con sus ítems, calcula totales y descuenta stock automáticamente")
+    @Operation(summary = "Crear pedido manual",
+            description = "Pedido que el cliente hizo directamente: nace CONFIRMED con su fecha de entrega. A cobrar = "
+                    + "productos (precio de catálogo) + envío - descuento. Descuenta stock sin bloquear (puede quedar "
+                    + "negativo). La dirección es opcional; los productos tienen que ser en guaraníes y estar activos")
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(orderService.createOrder(request));
+    }
+
+    @PutMapping("/{id}/items")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Editar productos de un pedido manual",
+            description = "Reemplaza los productos, el envío y el descuento. Devuelve el stock de los anteriores y "
+                    + "descuenta el de los nuevos; los que ya estaban conservan su precio. Solo pedidos MANUAL que no "
+                    + "estén entregados ni cancelados")
+    public ResponseEntity<OrderResponse> updateItems(@PathVariable UUID id,
+            @Valid @RequestBody OrderItemsUpdateRequest request) {
+        return ResponseEntity.ok(orderService.updateItems(id, request));
     }
 
     @PatchMapping("/{id}/status")

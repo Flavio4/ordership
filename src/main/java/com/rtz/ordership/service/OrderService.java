@@ -3,6 +3,8 @@ package com.rtz.ordership.service;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
 import com.rtz.ordership.dto.request.OrderItemRequest;
+import com.rtz.ordership.dto.request.OrderItemsUpdateRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
@@ -30,9 +33,11 @@ import com.rtz.ordership.entity.OrderItem;
 import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.entity.ShopifyReference;
 import com.rtz.ordership.entity.User;
+import com.rtz.ordership.entity.enums.Currency;
 import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerAddressRepository;
@@ -120,60 +125,124 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
-        log.info("Creando pedido para cliente ID: {} - {} ítems", request.customerId(), request.items().size());
+        log.info("Creando pedido manual para cliente ID: {} - {} ítems", request.customerId(), request.items().size());
 
-        // Obtener usuario autenticado
         User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        // Validar cliente
         Customer customer = customerRepository.findById(request.customerId())
                 .orElseThrow(
                         () -> new ResourceNotFoundException("Cliente no encontrado con ID: " + request.customerId()));
 
-        // Validar dirección
-        CustomerAddress address = addressRepository.findById(request.customerAddressId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Dirección no encontrada con ID: " + request.customerAddressId()));
-
-        if (!address.getCustomer().getId().equals(customer.getId())) {
-            throw new ResourceNotFoundException("La dirección no pertenece al cliente especificado");
+        CustomerAddress address = null;
+        if (request.customerAddressId() != null) {
+            address = addressRepository.findById(request.customerAddressId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Dirección no encontrada con ID: " + request.customerAddressId()));
+            if (!address.getCustomer().getId().equals(customer.getId())) {
+                throw new ResourceNotFoundException("La dirección no pertenece al cliente especificado");
+            }
         }
 
-        ShippingMethod shippingMethod = request.shippingMethod() != null
-                ? request.shippingMethod()
-                : ShippingMethod.OWN_DELIVERY;
-        if (shippingMethod == ShippingMethod.COURIER
-                && (request.courierName() == null || request.courierName().isBlank())) {
-            throw new IllegalArgumentException("El nombre de la empresa de envíos es obligatorio para envío por courier");
-        }
-
-        // Construir el pedido
+        // El cliente ya lo pidió directamente: nace confirmado y con fecha de entrega
         Order order = Order.builder()
                 .customer(customer)
                 .customerAddress(address)
                 .createdBy(currentUser)
-                .status(OrderStatus.PENDING)
+                .status(OrderStatus.CONFIRMED)
+                .confirmedAt(Instant.now())
+                .paymentStatus(request.paymentStatus() != null ? request.paymentStatus() : PaymentStatus.UNPAID)
                 .source(OrderSource.MANUAL)
-                .shippingMethod(shippingMethod)
-                .courierName(shippingMethod == ShippingMethod.COURIER ? request.courierName() : null)
-                .trackingCode(request.trackingCode())
-                .notes(request.notes())
+                .notes(blankToNull(request.notes()))
                 .deliveryDate(request.deliveryDate())
-                .totalAmount(BigDecimal.ZERO) // se calcula abajo
+                .totalAmount(BigDecimal.ZERO)
                 .amountToCollect(BigDecimal.ZERO)
                 .build();
 
-        List<OrderItem> orderItems = buildOrderItems(order, request.items(), true);
-        BigDecimal totalAmount = sumSubtotals(orderItems);
-
-        order.setTotalAmount(totalAmount);
-        order.setAmountToCollect(totalAmount);
-        order.getItems().addAll(orderItems);
+        order.getItems().addAll(buildManualItems(order, request.items(), Map.of()));
+        applyTotals(order, request.deliveryFee(), request.discount());
 
         Order saved = orderRepository.save(order);
-        log.info("Pedido creado - id: {}, cliente: {}, total: {}, ítems: {}",
-                saved.getId(), customer.getFullName(), totalAmount, orderItems.size());
+        log.info("Pedido manual creado - id: {}, cliente: {}, a cobrar: {}, ítems: {}",
+                saved.getId(), customer.getFullName(), saved.getAmountToCollect(), saved.getItems().size());
         return OrderResponse.fromEntity(saved);
+    }
+
+    // ── Editar los productos de un pedido manual ────────────────────────────
+
+    /**
+     * Reemplaza los ítems: devuelve el stock de los anteriores y descuenta el de los nuevos. Los productos que ya
+     * estaban conservan el precio con el que se vendieron; los nuevos toman el del catálogo.
+     */
+    @Transactional
+    public OrderResponse updateItems(UUID id, OrderItemsUpdateRequest request) {
+        log.info("Editando productos del pedido ID: {} - {} ítems", id, request.items().size());
+        Order order = findOrderOrThrow(id);
+
+        if (order.getSource() != OrderSource.MANUAL) {
+            throw new IllegalStateException(
+                    "Los productos de un pedido de Shopify no se editan: el cliente ya pagó ese total en Shopify");
+        }
+        if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("No se pueden editar los productos de un pedido " + order.getStatus());
+        }
+
+        Map<UUID, BigDecimal> soldPrices = new HashMap<>();
+        for (OrderItem item : order.getItems()) {
+            soldPrices.put(item.getProduct().getId(), item.getUnitPrice());
+        }
+        restoreStock(order);
+        order.getItems().clear();
+        order.getItems().addAll(buildManualItems(order, request.items(), soldPrices));
+        applyTotals(order, request.deliveryFee(), request.discount());
+
+        Order saved = orderRepository.save(order);
+        log.info("Pedido ID: {} - productos editados, a cobrar: {}", id, saved.getAmountToCollect());
+        return OrderResponse.fromEntity(saved);
+    }
+
+    /**
+     * Ítems de un pedido manual: un producto repetido se suma en una sola línea, no se venden productos
+     * desactivados ni con precio en dólares, y la falta de stock no bloquea (queda negativo, igual que Shopify).
+     */
+    private List<OrderItem> buildManualItems(Order order, List<OrderItemRequest> requests,
+            Map<UUID, BigDecimal> soldPrices) {
+        Map<UUID, Integer> quantities = new LinkedHashMap<>();
+        for (OrderItemRequest request : requests) {
+            quantities.merge(request.productId(), request.quantity(), Integer::sum);
+        }
+        return quantities.entrySet().stream().map(entry -> {
+            Product product = productRepository.findById(entry.getKey())
+                    .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + entry.getKey()));
+            boolean alreadyInOrder = soldPrices.containsKey(product.getId());
+            if (!product.getActive() && !alreadyInOrder) {
+                throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
+            }
+            if (product.getCurrency() != Currency.PYG) {
+                throw new IllegalStateException("'" + product.getName()
+                        + "' tiene el precio en dólares; los pedidos se cobran en guaraníes");
+            }
+            return buildOrderItem(order, product, entry.getValue(),
+                    alreadyInOrder ? soldPrices.get(product.getId()) : product.getSalePrice());
+        }).toList();
+    }
+
+    // A cobrar = productos + envío - descuento
+    private void applyTotals(Order order, BigDecimal deliveryFee, BigDecimal discount) {
+        BigDecimal fee = deliveryFee != null ? deliveryFee : BigDecimal.ZERO;
+        BigDecimal off = discount != null ? discount : BigDecimal.ZERO;
+        BigDecimal total = sumSubtotals(order.getItems());
+        BigDecimal toCollect = total.add(fee).subtract(off);
+        if (toCollect.signum() < 0) {
+            throw new IllegalArgumentException("El descuento no puede ser mayor que el total del pedido");
+        }
+        order.setTotalAmount(total);
+        order.setDeliveryFee(fee);
+        order.setDiscount(off);
+        order.setAmountToCollect(toCollect);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     // ── Crear pedido a partir de un webhook de Shopify ──────────────────────
@@ -210,7 +279,7 @@ public class OrderService {
                 .build();
 
         // La venta ya ocurrió en Shopify (el cliente pagó): no se rechaza por stock ni por producto desactivado
-        List<OrderItem> orderItems = buildOrderItems(order, items, false);
+        List<OrderItem> orderItems = buildShopifyItems(order, items);
         BigDecimal totalAmount = sumSubtotals(orderItems);
 
         order.setTotalAmount(totalAmount);
@@ -225,44 +294,30 @@ public class OrderService {
         return OrderResponse.fromEntity(saved);
     }
 
-    // ── Helpers de ítems (compartidos entre creación manual y Shopify) ──────
+    // ── Helpers de ítems ────────────────────────────────────────────────────
 
-    /**
-     * @param validateAvailability true = rechaza productos desactivados o sin stock suficiente (pedidos manuales).
-     *                             false = los acepta y el stock puede quedar negativo (pedidos ya vendidos en Shopify).
-     */
-    private List<OrderItem> buildOrderItems(Order order, List<OrderItemRequest> items, boolean validateAvailability) {
+    private List<OrderItem> buildShopifyItems(Order order, List<OrderItemRequest> items) {
         return items.stream().map(itemReq -> {
             Product product = productRepository.findById(itemReq.productId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Producto no encontrado con ID: " + itemReq.productId()));
-            return buildOrderItem(order, product, itemReq.quantity(), validateAvailability);
+            if (!product.getActive()) {
+                log.warn("Pedido Shopify con producto desactivado: '{}'", product.getName());
+            }
+            return buildOrderItem(order, product, itemReq.quantity(), product.getSalePrice());
         }).toList();
     }
 
-    private OrderItem buildOrderItem(Order order, Product product, Integer quantity, boolean validateAvailability) {
-        if (!product.getActive()) {
-            if (validateAvailability) {
-                throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
-            }
-            log.warn("Pedido Shopify con producto desactivado: '{}'", product.getName());
-        }
-
+    // Descuenta el stock; si no alcanza queda negativo: la venta ya se hizo y no se bloquea
+    private OrderItem buildOrderItem(Order order, Product product, Integer quantity, BigDecimal unitPrice) {
         if (product.getStock() < quantity) {
-            if (validateAvailability) {
-                throw new IllegalStateException(
-                        "Stock insuficiente para '" + product.getName()
-                                + "'. Disponible: " + product.getStock()
-                                + ", solicitado: " + quantity);
-            }
-            log.warn("Pedido Shopify deja stock negativo para '{}': disponible {}, vendido {}",
+            log.warn("Pedido deja stock negativo para '{}': disponible {}, vendido {}",
                     product.getName(), product.getStock(), quantity);
         }
 
         product.setStock(product.getStock() - quantity);
         productRepository.save(product);
 
-        BigDecimal unitPrice = product.getSalePrice();
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
 
         return OrderItem.builder()
