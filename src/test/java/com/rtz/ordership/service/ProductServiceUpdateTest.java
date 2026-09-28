@@ -2,6 +2,8 @@ package com.rtz.ordership.service;
 
 import com.rtz.ordership.dto.request.ProductUpdateRequest;
 import com.rtz.ordership.entity.Product;
+import com.rtz.ordership.entity.enums.Currency;
+import com.rtz.ordership.repository.OrderItemRepository;
 import com.rtz.ordership.repository.ProductRepository;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -27,7 +29,7 @@ class ProductServiceUpdateTest {
     void setUp() {
         productRepository = mock(ProductRepository.class);
         when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        productService = new ProductService(productRepository);
+        productService = new ProductService(productRepository, mock(OrderItemRepository.class));
         product = Product.builder()
                 .id(UUID.randomUUID())
                 .name("Remera")
@@ -68,6 +70,20 @@ class ProductServiceUpdateTest {
         productService.updateProduct(product.getId(),
                 new ProductUpdateRequest(null, null, new BigDecimal("90000"), null, null, null, null, null));
         assertThat(product.getNeedsReview()).isFalse();
+    }
+
+    @Test
+    void loadingThePurchasePriceFillsTheCostOfItemsSoldWithoutIt() {
+        OrderItemRepository orderItemRepository = mock(OrderItemRepository.class);
+        productService = new ProductService(productRepository, orderItemRepository);
+        product.setCurrency(Currency.PYG);
+
+        productService.updateProduct(product.getId(), request(null, "Algodón peinado", null));
+        verifyNoInteractions(orderItemRepository);
+
+        productService.updateProduct(product.getId(),
+                new ProductUpdateRequest(null, null, new BigDecimal("90000"), null, null, null, null, null));
+        verify(orderItemRepository).fillMissingUnitCost(product.getId(), new BigDecimal("90000"));
     }
 
     private ProductUpdateRequest request(String name, String description, String shopifySku) {

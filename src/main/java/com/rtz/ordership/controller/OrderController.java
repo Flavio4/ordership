@@ -3,6 +3,7 @@ package com.rtz.ordership.controller;
 import com.rtz.ordership.dto.request.DeliveryAssignmentRequest;
 import com.rtz.ordership.dto.request.DeliveryStatusUpdateRequest;
 import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
+import com.rtz.ordership.dto.request.OrderDeliveryCostRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryDateRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryRequest;
 import com.rtz.ordership.dto.request.OrderItemsUpdateRequest;
@@ -76,6 +77,15 @@ public class OrderController {
     public ResponseEntity<OrderResponse> updateDeliveryDate(@PathVariable UUID id,
             @RequestBody OrderDeliveryDateRequest request) {
         return ResponseEntity.ok(orderService.updateDeliveryDate(id, request.deliveryDate()));
+    }
+
+    @PatchMapping("/{id}/delivery-cost")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Costo del delivery", description = "Lo que se le pagó al repartidor o courier, para la ganancia "
+            + "neta del pedido (profit); null lo quita")
+    public ResponseEntity<OrderResponse> updateDeliveryCost(@PathVariable UUID id,
+            @RequestBody OrderDeliveryCostRequest request) {
+        return ResponseEntity.ok(orderService.updateDeliveryCost(id, request.deliveryCost()));
     }
 
     @GetMapping("/{id}")

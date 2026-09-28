@@ -35,4 +35,8 @@ public class OrderItem {
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
+
+    // Precio de compra al momento de la venta; null si el producto no lo tenía cargado
+    @Column(precision = 12, scale = 2)
+    private BigDecimal unitCost;
 }

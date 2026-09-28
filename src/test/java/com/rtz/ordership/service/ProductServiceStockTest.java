@@ -3,6 +3,7 @@ package com.rtz.ordership.service;
 import com.rtz.ordership.dto.response.ProductResponse;
 import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.exception.ResourceNotFoundException;
+import com.rtz.ordership.repository.OrderItemRepository;
 import com.rtz.ordership.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class ProductServiceStockTest {
     @BeforeEach
     void setUp() {
         productRepository = mock(ProductRepository.class);
-        productService = new ProductService(productRepository);
+        productService = new ProductService(productRepository, mock(OrderItemRepository.class));
     }
 
     @Test

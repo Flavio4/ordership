@@ -186,13 +186,14 @@ public class OrderService {
             throw new IllegalStateException("No se pueden editar los productos de un pedido " + order.getStatus());
         }
 
-        Map<UUID, BigDecimal> soldPrices = new HashMap<>();
+        Map<UUID, OrderItem> soldItems = new HashMap<>();
         for (OrderItem item : order.getItems()) {
-            soldPrices.put(item.getProduct().getId(), item.getUnitPrice());
+            soldItems.put(item.getProduct().getId(), item);
         }
         restoreStock(order);
+        List<OrderItem> items = buildManualItems(order, request.items(), soldItems);
         order.getItems().clear();
-        order.getItems().addAll(buildManualItems(order, request.items(), soldPrices));
+        order.getItems().addAll(items);
         applyTotals(order, request.deliveryFee(), request.discount());
 
         Order saved = orderRepository.save(order);
@@ -203,9 +204,10 @@ public class OrderService {
     /**
      * Ítems de un pedido manual: un producto repetido se suma en una sola línea, no se venden productos
      * desactivados ni con precio en dólares, y la falta de stock no bloquea (queda negativo, igual que Shopify).
+     * Los que ya estaban en el pedido ({@code soldItems}) conservan el precio y el costo con que se vendieron.
      */
     private List<OrderItem> buildManualItems(Order order, List<OrderItemRequest> requests,
-            Map<UUID, BigDecimal> soldPrices) {
+            Map<UUID, OrderItem> soldItems) {
         Map<UUID, Integer> quantities = new LinkedHashMap<>();
         for (OrderItemRequest request : requests) {
             quantities.merge(request.productId(), request.quantity(), Integer::sum);
@@ -213,16 +215,19 @@ public class OrderService {
         return quantities.entrySet().stream().map(entry -> {
             Product product = productRepository.findById(entry.getKey())
                     .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + entry.getKey()));
-            boolean alreadyInOrder = soldPrices.containsKey(product.getId());
-            if (!product.getActive() && !alreadyInOrder) {
+            OrderItem sold = soldItems.get(product.getId());
+            if (!product.getActive() && sold == null) {
                 throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
             }
             if (product.getCurrency() != Currency.PYG) {
                 throw new IllegalStateException("'" + product.getName()
                         + "' tiene el precio en dólares; los pedidos se cobran en guaraníes");
             }
-            return buildOrderItem(order, product, entry.getValue(),
-                    alreadyInOrder ? soldPrices.get(product.getId()) : product.getSalePrice());
+            if (sold == null) {
+                return buildOrderItem(order, product, entry.getValue(), product.getSalePrice(), costOf(product));
+            }
+            BigDecimal unitCost = sold.getUnitCost() != null ? sold.getUnitCost() : costOf(product);
+            return buildOrderItem(order, product, entry.getValue(), sold.getUnitPrice(), unitCost);
         }).toList();
     }
 
@@ -304,12 +309,25 @@ public class OrderService {
             if (!product.getActive()) {
                 log.warn("Pedido Shopify con producto desactivado: '{}'", product.getName());
             }
-            return buildOrderItem(order, product, itemReq.quantity(), product.getSalePrice());
+            return buildOrderItem(order, product, itemReq.quantity(), product.getSalePrice(), costOf(product));
         }).toList();
     }
 
+    /**
+     * Precio de compra que se congela en el ítem. Null si el producto no lo tiene (creado desde Shopify, por
+     * completar) o está en dólares: se completa cuando se carga el precio de compra del producto.
+     */
+    static BigDecimal costOf(Product product) {
+        if (Boolean.TRUE.equals(product.getNeedsReview()) || product.getCurrency() != Currency.PYG
+                || product.getPurchasePrice() == null || product.getPurchasePrice().signum() <= 0) {
+            return null;
+        }
+        return product.getPurchasePrice();
+    }
+
     // Descuenta el stock; si no alcanza queda negativo: la venta ya se hizo y no se bloquea
-    private OrderItem buildOrderItem(Order order, Product product, Integer quantity, BigDecimal unitPrice) {
+    private OrderItem buildOrderItem(Order order, Product product, Integer quantity, BigDecimal unitPrice,
+            BigDecimal unitCost) {
         if (product.getStock() < quantity) {
             log.warn("Pedido deja stock negativo para '{}': disponible {}, vendido {}",
                     product.getName(), product.getStock(), quantity);
@@ -326,6 +344,7 @@ public class OrderService {
                 .quantity(quantity)
                 .unitPrice(unitPrice)
                 .subtotal(subtotal)
+                .unitCost(unitCost)
                 .build();
     }
 
@@ -421,6 +440,19 @@ public class OrderService {
             throw new IllegalStateException("No se puede programar la entrega de un pedido " + order.getStatus());
         }
         order.setDeliveryDate(deliveryDate);
+        return OrderResponse.fromEntity(orderRepository.save(order));
+    }
+
+    // ── Costo del delivery (ganancia) ────────────────────────────────────────
+
+    @Transactional
+    public OrderResponse updateDeliveryCost(UUID id, BigDecimal deliveryCost) {
+        log.info("Costo del delivery del pedido ID: {} → {}", id, deliveryCost);
+        if (deliveryCost != null && deliveryCost.signum() < 0) {
+            throw new IllegalArgumentException("El costo del delivery no puede ser negativo");
+        }
+        Order order = findOrderOrThrow(id);
+        order.setDeliveryCost(deliveryCost);
         return OrderResponse.fromEntity(orderRepository.save(order));
     }
 

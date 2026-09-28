@@ -11,7 +11,8 @@ public record OrderItemResponse(
         String productName,
         Integer quantity,
         BigDecimal unitPrice,
-        BigDecimal subtotal) {
+        BigDecimal subtotal,
+        BigDecimal unitCost) {
     public static OrderItemResponse fromEntity(OrderItem item) {
         return new OrderItemResponse(
                 item.getId(),
@@ -19,6 +20,7 @@ public record OrderItemResponse(
                 item.getProduct().getName(),
                 item.getQuantity(),
                 item.getUnitPrice(),
-                item.getSubtotal());
+                item.getSubtotal(),
+                item.getUnitCost());
     }
 }

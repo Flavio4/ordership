@@ -6,6 +6,7 @@ import com.rtz.ordership.dto.response.ProductResponse;
 import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
+import com.rtz.ordership.repository.OrderItemRepository;
 import com.rtz.ordership.repository.ProductRepository;
 import com.rtz.ordership.util.SearchPatterns;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Slf4j
@@ -21,9 +23,11 @@ import java.util.UUID;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final OrderItemRepository orderItemRepository;
 
-    public ProductService(ProductRepository productRepository) {
+    public ProductService(ProductRepository productRepository, OrderItemRepository orderItemRepository) {
         this.productRepository = productRepository;
+        this.orderItemRepository = orderItemRepository;
     }
 
     public Page<ProductResponse> getAllProducts(boolean active, Boolean needsReview, Boolean outOfStock, String query,
@@ -120,6 +124,14 @@ public class ProductService {
 
         product = productRepository.save(product);
         log.info("Producto actualizado - id: {}, nombre: {}", product.getId(), product.getName());
+
+        BigDecimal unitCost = OrderService.costOf(product);
+        if (request.purchasePrice() != null && unitCost != null) {
+            int filled = orderItemRepository.fillMissingUnitCost(product.getId(), unitCost);
+            if (filled > 0) {
+                log.info("Costo {} cargado en {} ítems vendidos sin costo de '{}'", unitCost, filled, product.getName());
+            }
+        }
         return ProductResponse.fromEntity(product);
     }
 

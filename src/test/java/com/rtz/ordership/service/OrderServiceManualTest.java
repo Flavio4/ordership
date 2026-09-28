@@ -143,6 +143,52 @@ class OrderServiceManualTest {
     }
 
     @Test
+    void theCostIsFrozenAtSaleAndTheProfitSubtractsProductsAndDelivery() {
+        curcuma.setPurchasePrice(new BigDecimal("100000"));
+        Product unreviewed = product("Nuevo de Shopify", "60000", 5);
+        unreviewed.setNeedsReview(true);
+
+        OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
+                new BigDecimal("15000"), null, null, List.of(new OrderItemRequest(curcuma.getId(), 2))));
+        assertThat(order.items().get(0).unitCost()).isEqualByComparingTo("100000");
+        // 373.000 cobrados - 200.000 de productos, sin costo de delivery cargado
+        assertThat(order.profit().productCost()).isEqualByComparingTo("200000");
+        assertThat(order.profit().deliveryCost()).isNull();
+        assertThat(order.profit().netProfit()).isEqualByComparingTo("173000");
+        assertThat(order.profit().complete()).isTrue();
+
+        OrderResponse incomplete = orderService.createOrder(request(new OrderItemRequest(unreviewed.getId(), 1)));
+        assertThat(incomplete.items().get(0).unitCost()).isNull();
+        assertThat(incomplete.profit().complete()).isFalse();
+    }
+
+    @Test
+    void theDeliveryCostIsOptionalAndCannotBeNegative() {
+        Order order = existingOrder(OrderSource.SHOPIFY, OrderStatus.DELIVERED);
+        order.setAmountToCollect(new BigDecimal("380000"));
+
+        OrderResponse withCost = orderService.updateDeliveryCost(order.getId(), new BigDecimal("20000"));
+        // 380.000 - 2 × 150.000 - 20.000
+        assertThat(withCost.profit().netProfit()).isEqualByComparingTo("60000");
+
+        assertThat(orderService.updateDeliveryCost(order.getId(), null).profit().netProfit())
+                .isEqualByComparingTo("80000");
+        assertThatThrownBy(() -> orderService.updateDeliveryCost(order.getId(), new BigDecimal("-1")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void editingItemsKeepsTheCostOfTheProductsAlreadySold() {
+        Order order = existingOrder(OrderSource.MANUAL, OrderStatus.CONFIRMED);
+        curcuma.setPurchasePrice(new BigDecimal("170000"));
+
+        OrderResponse edited = orderService.updateItems(order.getId(), new OrderItemsUpdateRequest(
+                List.of(new OrderItemRequest(curcuma.getId(), 3)), null, null));
+
+        assertThat(edited.items().get(0).unitCost()).isEqualByComparingTo("150000");
+    }
+
+    @Test
     void shopifyDeliveredOrCancelledOrdersCannotBeEdited() {
         OrderItemsUpdateRequest request = new OrderItemsUpdateRequest(
                 List.of(new OrderItemRequest(curcuma.getId(), 1)), null, null);
@@ -160,7 +206,7 @@ class OrderServiceManualTest {
         return new OrderRequest(customer.getId(), null, DELIVERY, null, null, null, null, List.of(items));
     }
 
-    // Pedido con 2 cúrcumas vendidas a 179.000 (stock ya descontado: 5 → 3)
+    // Pedido con 2 cúrcumas vendidas a 179.000, con costo 150.000 (stock ya descontado: 5 → 3)
     private Order existingOrder(OrderSource source, OrderStatus status) {
         curcuma.setStock(3);
         Order order = Order.builder()
@@ -168,7 +214,8 @@ class OrderServiceManualTest {
                 .totalAmount(new BigDecimal("358000")).amountToCollect(new BigDecimal("358000"))
                 .build();
         order.getItems().add(OrderItem.builder().order(order).product(curcuma).quantity(2)
-                .unitPrice(new BigDecimal("179000")).subtotal(new BigDecimal("358000")).build());
+                .unitPrice(new BigDecimal("179000")).subtotal(new BigDecimal("358000"))
+                .unitCost(new BigDecimal("150000")).build());
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         return order;
     }

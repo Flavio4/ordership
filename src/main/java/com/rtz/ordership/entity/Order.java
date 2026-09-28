@@ -98,6 +98,10 @@ public class Order {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal discount = BigDecimal.ZERO;
 
+    // Lo que se le pagó al repartidor o courier; lo carga el operador (null = sin cargar)
+    @Column(precision = 12, scale = 2)
+    private BigDecimal deliveryCost;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
