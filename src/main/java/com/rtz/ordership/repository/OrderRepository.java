@@ -44,6 +44,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                        AND o.status IN (com.rtz.ordership.entity.enums.OrderStatus.CONFIRMED,
                                         com.rtz.ordership.entity.enums.OrderStatus.ASSIGNED,
                                         com.rtz.ordership.entity.enums.OrderStatus.IN_TRANSIT)))
+              AND (:missingDeliveryCost = false
+                   OR (o.status = com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
+                       AND o.deliveryCost IS NULL
+                       AND o.createdAt >= :missingDeliveryCostSince))
             """)
     Page<Order> search(@Param("customerId") UUID customerId,
             @Param("status") OrderStatus status,
@@ -53,6 +57,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("phoneLike") String phoneLike,
             @Param("orderNumber") Long orderNumber,
             @Param("scheduled") boolean scheduled,
+            @Param("missingDeliveryCost") boolean missingDeliveryCost,
+            @Param("missingDeliveryCostSince") Instant missingDeliveryCostSince,
             Pageable pageable);
 
     // Agenda: pedidos confirmados (o ya en reparto) con fecha de entrega, todavía sin entregar
@@ -79,13 +85,30 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     // Dashboard
     long countByStatusIn(Collection<OrderStatus> statuses);
 
-    // Ventas = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo; sin los cancelados
+    /**
+     * Un pedido por fila, sin los cancelados: [createdAt, amountToCollect, costo de productos, costo del delivery,
+     * ítems sin costo]. Ventas = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo.
+     */
     @Query("""
-            SELECT o.createdAt, o.amountToCollect FROM Order o
+            SELECT o.createdAt, o.amountToCollect,
+                   COALESCE(SUM(i.quantity * i.unitCost), 0),
+                   COALESCE(o.deliveryCost, 0),
+                   SUM(CASE WHEN i.id IS NOT NULL AND i.unitCost IS NULL THEN 1 ELSE 0 END)
+            FROM Order o LEFT JOIN o.items i
             WHERE o.createdAt >= :from
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            GROUP BY o.id, o.createdAt, o.amountToCollect, o.deliveryCost
             """)
     List<Object[]> salesSince(@Param("from") Instant from);
+
+    // Entregados sin el costo del delivery cargado (para completar la ganancia)
+    @Query("""
+            SELECT COUNT(o) FROM Order o
+            WHERE o.status = com.rtz.ordership.entity.enums.OrderStatus.DELIVERED
+              AND o.deliveryCost IS NULL
+              AND o.createdAt >= :since
+            """)
+    long countDeliveredWithoutCostSince(@Param("since") Instant since);
 
     @Query("""
             SELECT new com.rtz.ordership.dto.response.CustomerOrderStats(

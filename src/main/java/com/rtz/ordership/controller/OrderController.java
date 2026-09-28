@@ -49,7 +49,8 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'DELIVERY')")
     @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega, cliente y origen (MANUAL/SHOPIFY). "
             + "query busca por nombre del cliente, número propio (P-1024), número de Shopify (#1488) o teléfono (desde 6 dígitos). "
-            + "scheduled=true: agenda, solo los que tienen fecha de entrega y todavía no se entregaron ni cancelaron")
+            + "scheduled=true: agenda, solo los que tienen fecha de entrega y todavía no se entregaron ni cancelaron. "
+            + "missingDeliveryCost=true: entregados de los últimos 30 días sin el costo del delivery cargado")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
@@ -57,8 +58,10 @@ public class OrderController {
             @RequestParam(required = false) OrderSource source,
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "false") boolean scheduled,
+            @RequestParam(defaultValue = "false") boolean missingDeliveryCost,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, scheduled, pageable));
+        return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, scheduled,
+                missingDeliveryCost, pageable));
     }
 
     @GetMapping("/agenda-summary")

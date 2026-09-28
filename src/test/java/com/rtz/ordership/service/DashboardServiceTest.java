@@ -10,8 +10,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,8 +22,9 @@ import static org.mockito.Mockito.*;
 
 class DashboardServiceTest {
 
-    // Sábado: la semana arrancó el lunes 21
+    // Sábado 26 al mediodía en Paraguay: la semana arrancó el lunes 21
     private static final LocalDate TODAY = LocalDate.of(2026, 9, 26);
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-26T15:00:00Z"), ZoneId.of("America/Asuncion"));
 
     private OrderRepository orderRepository;
     private DashboardService service;
@@ -37,6 +40,7 @@ class DashboardServiceTest {
         when(orderRepository.countByStatusIn(List.of(OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT))).thenReturn(2L);
         when(orderRepository.countScheduledOn(TODAY, null)).thenReturn(5L);
         when(orderRepository.countScheduledBefore(TODAY, null)).thenReturn(1L);
+        when(orderRepository.countDeliveredWithoutCostSince(Instant.parse("2026-08-27T15:00:00Z"))).thenReturn(6L);
         service = new DashboardService(orderRepository, productRepository, failureRepository, "America/Asuncion");
     }
 
@@ -50,7 +54,7 @@ class DashboardServiceTest {
                 sale("2026-09-26T14:00:00Z", "179000"),
                 sale("2026-09-26T20:00:00Z", "60000")));
 
-        DashboardResponse dashboard = service.getDashboard(TODAY);
+        DashboardResponse dashboard = service.getDashboard(CLOCK);
 
         assertThat(dashboard.today()).isEqualTo(TODAY);
         assertThat(dashboard.ordersToday()).isEqualTo(2);
@@ -65,10 +69,45 @@ class DashboardServiceTest {
     }
 
     @Test
-    void theToDoCountsComeFromShopifyOrdersProductsAndFailures() {
+    void theProfitSubtractsProductsAndDeliveryAndCountsOrdersWithoutCost() {
+        when(orderRepository.salesSince(any())).thenReturn(List.of(
+                sale("2026-09-26T14:00:00Z", "179000", "100000", "20000", 0),
+                sale("2026-09-26T16:00:00Z", "60000", "10000", "0", 1),
+                sale("2026-09-22T13:00:00Z", "200000", "150000", "0", 0)));
+
+        DashboardResponse dashboard = service.getDashboard(CLOCK);
+
+        assertThat(dashboard.todayTotals().revenue()).isEqualByComparingTo("239000");
+        assertThat(dashboard.todayTotals().profit()).isEqualByComparingTo("109000");
+        assertThat(dashboard.todayTotals().ordersWithoutCost()).isEqualTo(1);
+        assertThat(dashboard.week().profit()).isEqualByComparingTo("159000");
+        assertThat(dashboard.lastSevenDays().get(6).profit()).isEqualByComparingTo("109000");
+        assertThat(dashboard.lastSevenDays().get(2).profit()).isEqualByComparingTo("50000");
+    }
+
+    @Test
+    void theMonthIsComparedWithTheSameStretchOfThePreviousMonth() {
+        when(orderRepository.salesSince(any())).thenReturn(List.of(
+                sale("2026-09-02T15:00:00Z", "300000", "100000", "0", 0),
+                sale("2026-08-10T15:00:00Z", "100000", "40000", "0", 0),
+                // 27 de agosto: ya pasa el día 26, no entra en la comparación
+                sale("2026-08-27T15:00:00Z", "500000", "100000", "0", 0)));
+
+        DashboardResponse dashboard = service.getDashboard(CLOCK);
+
+        assertThat(dashboard.month().from()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(dashboard.month().revenue()).isEqualByComparingTo("300000");
+        assertThat(dashboard.previousMonth().from()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(dashboard.previousMonth().to()).isEqualTo(LocalDate.of(2026, 8, 26));
+        assertThat(dashboard.previousMonth().revenue()).isEqualByComparingTo("100000");
+        assertThat(dashboard.previousMonth().profit()).isEqualByComparingTo("60000");
+    }
+
+    @Test
+    void theToDoCountsComeFromOrdersProductsAndFailures() {
         when(orderRepository.salesSince(any())).thenReturn(List.of());
 
-        DashboardResponse dashboard = service.getDashboard(TODAY);
+        DashboardResponse dashboard = service.getDashboard(CLOCK);
 
         assertThat(dashboard.pendingOrders()).isEqualTo(3);
         assertThat(dashboard.inDeliveryOrders()).isEqualTo(2);
@@ -76,11 +115,18 @@ class DashboardServiceTest {
         assertThat(dashboard.deliveriesOverdue()).isEqualTo(1);
         assertThat(dashboard.productsToReview()).isEqualTo(4);
         assertThat(dashboard.webhookFailures()).isEqualTo(1);
+        assertThat(dashboard.deliveredWithoutCost()).isEqualTo(6);
         assertThat(dashboard.ordersToday()).isZero();
-        verify(orderRepository).salesSince(Instant.parse("2026-09-20T03:00:00Z"));
+        // Desde el 1 del mes anterior (lo que queda antes: los últimos 7 días caen dentro)
+        verify(orderRepository).salesSince(Instant.parse("2026-08-01T03:00:00Z"));
     }
 
     private Object[] sale(String createdAt, String amount) {
-        return new Object[] { Instant.parse(createdAt), new BigDecimal(amount) };
+        return sale(createdAt, amount, "0", "0", 0);
+    }
+
+    private Object[] sale(String createdAt, String amount, String productCost, String deliveryCost, long withoutCost) {
+        return new Object[] { Instant.parse(createdAt), new BigDecimal(amount), new BigDecimal(productCost),
+                new BigDecimal(deliveryCost), withoutCost };
     }
 }

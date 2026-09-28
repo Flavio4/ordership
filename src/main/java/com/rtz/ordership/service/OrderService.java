@@ -1,6 +1,7 @@
 package com.rtz.ordership.service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -84,13 +85,16 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
-            UUID customerId, OrderSource source, String query, boolean scheduled, Pageable pageable) {
-        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {} | agenda: {}",
-                status, deliveryDate, customerId, source, query, scheduled);
+            UUID customerId, OrderSource source, String query, boolean scheduled, boolean missingDeliveryCost,
+            Pageable pageable) {
+        log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {} | agenda: {} "
+                        + "| sin costo de delivery: {}",
+                status, deliveryDate, customerId, source, query, scheduled, missingDeliveryCost);
 
         Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source,
                 SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query),
-                SearchPatterns.orderNumber(query), scheduled, pageable);
+                SearchPatterns.orderNumber(query), scheduled, missingDeliveryCost,
+                missingDeliveryCostSince(Instant.now()), pageable);
 
         Page<OrderResponse> result = page.map(OrderResponse::fromEntity);
         log.info("Se encontraron {} pedidos en la página (Total: {})",
@@ -444,6 +448,13 @@ public class OrderService {
     }
 
     // ── Costo del delivery (ganancia) ────────────────────────────────────────
+
+    // El aviso de entregados sin costo mira solo los pedidos recientes: los viejos no se van a completar
+    static final int MISSING_DELIVERY_COST_DAYS = 30;
+
+    static Instant missingDeliveryCostSince(Instant now) {
+        return now.minus(Duration.ofDays(MISSING_DELIVERY_COST_DAYS));
+    }
 
     @Transactional
     public OrderResponse updateDeliveryCost(UUID id, BigDecimal deliveryCost) {
