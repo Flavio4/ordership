@@ -50,7 +50,9 @@ public class OrderController {
     @Operation(summary = "Listar pedidos", description = "Lista pedidos paginados con filtros opcionales por estado, fecha de entrega, cliente y origen (MANUAL/SHOPIFY). "
             + "query busca por nombre del cliente, número propio (P-1024), número de Shopify (#1488) o teléfono (desde 6 dígitos). "
             + "scheduled=true: agenda, solo los que tienen fecha de entrega y todavía no se entregaron ni cancelaron. "
-            + "missingDeliveryCost=true: entregados de los últimos 30 días sin el costo del delivery cargado")
+            + "missingDeliveryCost=true: entregados de los últimos 30 días sin el costo del delivery cargado. "
+            + "from/to: rango de días (inclusive, cualquiera opcional); en la agenda filtra por fecha de entrega y si no, "
+            + "por fecha de creación en hora de Paraguay")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
@@ -59,9 +61,11 @@ public class OrderController {
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "false") boolean scheduled,
             @RequestParam(defaultValue = "false") boolean missingDeliveryCost,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, scheduled,
-                missingDeliveryCost, pageable));
+                missingDeliveryCost, from, to, pageable));
     }
 
     @GetMapping("/agenda-summary")

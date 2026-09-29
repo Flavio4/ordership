@@ -33,6 +33,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             WHERE (:customerId IS NULL OR o.customer.id = :customerId)
               AND (:status IS NULL OR o.status = :status)
               AND (:deliveryDate IS NULL OR o.deliveryDate = :deliveryDate)
+              AND o.createdAt >= :createdFrom
+              AND o.createdAt < :createdBefore
               AND (:source IS NULL OR o.source = :source)
               AND (:textLike IS NULL
                    OR LOWER(o.customer.fullName) LIKE :textLike
@@ -41,6 +43,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                    OR (:orderNumber IS NOT NULL AND o.orderNumber = :orderNumber))
               AND (:scheduled = false
                    OR (o.deliveryDate IS NOT NULL
+                       AND o.deliveryDate BETWEEN :deliveryFrom AND :deliveryTo
                        AND o.status IN (com.rtz.ordership.entity.enums.OrderStatus.CONFIRMED,
                                         com.rtz.ordership.entity.enums.OrderStatus.ASSIGNED,
                                         com.rtz.ordership.entity.enums.OrderStatus.IN_TRANSIT)))
@@ -52,6 +55,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> search(@Param("customerId") UUID customerId,
             @Param("status") OrderStatus status,
             @Param("deliveryDate") LocalDate deliveryDate,
+            @Param("deliveryFrom") LocalDate deliveryFrom,
+            @Param("deliveryTo") LocalDate deliveryTo,
+            @Param("createdFrom") Instant createdFrom,
+            @Param("createdBefore") Instant createdBefore,
             @Param("source") OrderSource source,
             @Param("textLike") String textLike,
             @Param("phoneLike") String phoneLike,
@@ -87,17 +94,19 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     /**
      * Un pedido por fila, sin los cancelados: [createdAt, amountToCollect, costo de productos, costo del delivery,
-     * ítems sin costo]. Ventas = lo que pagan los clientes (amountToCollect), no la suma a precios de catálogo.
+     * ítems sin costo, estado del pago]. Ventas = lo que pagan los clientes (amountToCollect), no la suma a precios de
+     * catálogo.
      */
     @Query("""
             SELECT o.createdAt, o.amountToCollect,
                    COALESCE(SUM(i.quantity * i.unitCost), 0),
                    COALESCE(o.deliveryCost, 0),
-                   SUM(CASE WHEN i.id IS NOT NULL AND i.unitCost IS NULL THEN 1 ELSE 0 END)
+                   SUM(CASE WHEN i.id IS NOT NULL AND i.unitCost IS NULL THEN 1 ELSE 0 END),
+                   o.paymentStatus
             FROM Order o LEFT JOIN o.items i
             WHERE o.createdAt >= :from
               AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
-            GROUP BY o.id, o.createdAt, o.amountToCollect, o.deliveryCost
+            GROUP BY o.id, o.createdAt, o.amountToCollect, o.deliveryCost, o.paymentStatus
             """)
     List<Object[]> salesSince(@Param("from") Instant from);
 

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -57,6 +59,9 @@ public class OrderService {
     private final CustomerRepository customerRepository;
     private final CustomerAddressRepository addressRepository;
     private final ProductRepository productRepository;
+    // El servidor corre en UTC: los días del filtro se cuentan con la hora del negocio
+    @Value("${app.timezone:America/Asuncion}")
+    private ZoneId zone = ZoneId.of("America/Asuncion");
 
     // Transiciones de estado válidas
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
@@ -83,15 +88,30 @@ public class OrderService {
 
     // ── Listar pedidos (paginado + filtros opcionales + customerId) ──────────
 
+    private static final LocalDate FIRST_DAY = LocalDate.of(2000, 1, 1);
+    private static final LocalDate LAST_DAY = LocalDate.of(9999, 12, 31);
+    private static final Instant NO_LIMIT = Instant.parse("9999-12-31T00:00:00Z");
+
+    // Rango de días [from, to]: en la agenda, por fecha de entrega; si no, por fecha de creación en hora del negocio
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
             UUID customerId, OrderSource source, String query, boolean scheduled, boolean missingDeliveryCost,
-            Pageable pageable) {
+            LocalDate from, LocalDate to, Pageable pageable) {
         log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {} | agenda: {} "
-                        + "| sin costo de delivery: {}",
-                status, deliveryDate, customerId, source, query, scheduled, missingDeliveryCost);
+                        + "| sin costo de delivery: {} | desde: {} | hasta: {}",
+                status, deliveryDate, customerId, source, query, scheduled, missingDeliveryCost, from, to);
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new IllegalArgumentException("La fecha \"desde\" no puede ser posterior a \"hasta\"");
+        }
 
-        Page<Order> page = orderRepository.search(customerId, status, deliveryDate, source,
+        // Sin rango van los extremos: Postgres no puede tipar un parámetro null en "IS NULL"
+        LocalDate deliveryFrom = scheduled && from != null ? from : FIRST_DAY;
+        LocalDate deliveryTo = scheduled && to != null ? to : LAST_DAY;
+        Instant createdFrom = !scheduled && from != null ? from.atStartOfDay(zone).toInstant() : Instant.EPOCH;
+        Instant createdBefore = !scheduled && to != null ? to.plusDays(1).atStartOfDay(zone).toInstant() : NO_LIMIT;
+
+        Page<Order> page = orderRepository.search(customerId, status, deliveryDate,
+                deliveryFrom, deliveryTo, createdFrom, createdBefore, source,
                 SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query),
                 SearchPatterns.orderNumber(query), scheduled, missingDeliveryCost,
                 missingDeliveryCostSince(Instant.now()), pageable);

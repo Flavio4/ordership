@@ -36,9 +36,14 @@ public record DashboardResponse(
     }
 
     /**
-     * @param ordersWithoutCost pedidos con algún producto sin precio de compra: la ganancia real es menor
+     * Lo vendido en el tramo (pedidos creados esos días) y, de eso, lo ya cobrado: solo los pagados (PAID); un pago
+     * parcial todavía no cuenta.
+     *
+     * @param ordersWithoutCost    pedidos con algún producto sin precio de compra: la ganancia real es menor
+     * @param collectedWithoutCost lo mismo, entre los cobrados
      */
     public record Period(LocalDate from, LocalDate to, long orders, BigDecimal revenue, BigDecimal profit,
-            long ordersWithoutCost) {
+            long ordersWithoutCost, long collectedOrders, BigDecimal collectedRevenue, BigDecimal collectedProfit,
+            long collectedWithoutCost) {
     }
 }

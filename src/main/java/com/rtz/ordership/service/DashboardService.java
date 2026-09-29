@@ -4,6 +4,7 @@ import com.rtz.ordership.dto.response.DashboardResponse;
 import com.rtz.ordership.dto.response.DashboardResponse.DailySales;
 import com.rtz.ordership.dto.response.DashboardResponse.Period;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.repository.OrderRepository;
 import com.rtz.ordership.repository.ProductRepository;
 import com.rtz.ordership.repository.ShopifyWebhookFailureRepository;
@@ -92,15 +93,15 @@ public class DashboardService {
         return dashboard;
     }
 
-    private record Sale(LocalDate day, BigDecimal revenue, BigDecimal profit, boolean withoutCost) {
+    private record Sale(LocalDate day, BigDecimal revenue, BigDecimal profit, boolean withoutCost, boolean paid) {
     }
 
-    // [createdAt, amountToCollect, costo de productos, costo del delivery, ítems sin costo]
+    // [createdAt, amountToCollect, costo de productos, costo del delivery, ítems sin costo, estado del pago]
     private Sale toSale(Object[] row) {
         BigDecimal revenue = decimal(row[1]);
         BigDecimal profit = revenue.subtract(decimal(row[2])).subtract(decimal(row[3]));
         return new Sale(((Instant) row[0]).atZone(zone).toLocalDate(), revenue, profit,
-                ((Number) row[4]).longValue() > 0);
+                ((Number) row[4]).longValue() > 0, row[5] == PaymentStatus.PAID);
     }
 
     private static BigDecimal decimal(Object value) {
@@ -113,13 +114,23 @@ public class DashboardService {
         long withoutCost = 0;
         BigDecimal revenue = BigDecimal.ZERO;
         BigDecimal profit = BigDecimal.ZERO;
+        long collectedOrders = 0;
+        long collectedWithoutCost = 0;
+        BigDecimal collectedRevenue = BigDecimal.ZERO;
+        BigDecimal collectedProfit = BigDecimal.ZERO;
         for (Sale sale : sales) {
             if (sale.day().isBefore(from) || sale.day().isAfter(to)) continue;
             orders++;
             revenue = revenue.add(sale.revenue());
             profit = profit.add(sale.profit());
             if (sale.withoutCost()) withoutCost++;
+            if (!sale.paid()) continue;
+            collectedOrders++;
+            collectedRevenue = collectedRevenue.add(sale.revenue());
+            collectedProfit = collectedProfit.add(sale.profit());
+            if (sale.withoutCost()) collectedWithoutCost++;
         }
-        return new Period(from, to, orders, revenue, profit, withoutCost);
+        return new Period(from, to, orders, revenue, profit, withoutCost,
+                collectedOrders, collectedRevenue, collectedProfit, collectedWithoutCost);
     }
 }
