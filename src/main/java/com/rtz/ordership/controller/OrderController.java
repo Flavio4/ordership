@@ -157,6 +157,17 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getOrderById(id));
     }
 
+    @PutMapping("/{id}/delivery")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Cambiar repartidor", description = "Corrige la entrega en curso con otro repartidor o courier "
+            + "(o otro código de seguimiento) sin contarla como fallida. Mismas reglas que al asignar; si estaba "
+            + "en camino, vuelve a ASSIGNED")
+    public ResponseEntity<OrderResponse> reassignDelivery(@PathVariable UUID id,
+            @Valid @RequestBody OrderDeliveryRequest request) {
+        deliveryService.reassignActiveDeliveryOfOrder(id, request.carrierId(), request.trackingCode());
+        return ResponseEntity.ok(orderService.getOrderById(id));
+    }
+
     @PatchMapping("/{id}/delivery")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @Operation(summary = "Avanzar la entrega", description = "Cambia el estado de la entrega en curso: IN_TRANSIT, DELIVERED o FAILED "

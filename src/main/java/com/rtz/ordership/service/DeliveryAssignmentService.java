@@ -85,17 +85,7 @@ public class DeliveryAssignmentService {
                     "Solo se puede asignar el reparto de pedidos confirmados. Estado actual: " + order.getStatus());
         }
 
-        Carrier carrier = carrierService.findCarrierOrThrow(request.carrierId());
-        if (!carrier.getActive()) {
-            throw new IllegalStateException("El repartidor '" + carrier.getName() + "' está desactivado");
-        }
-
-        boolean courier = carrier.getType() == CarrierType.COURIER;
-        if (!courier && order.getCustomerAddress() == null) {
-            throw new IllegalStateException(
-                    "Para un repartidor propio el pedido necesita una dirección con zona. "
-                            + "Asignale una dirección o despachalo por courier.");
-        }
+        Carrier carrier = carrierFor(order, request.carrierId());
 
         if (deliveryRepository.existsByOrderIdAndStatusIn(order.getId(), ACTIVE_STATUSES)) {
             throw new IllegalStateException("Este pedido ya tiene una entrega en curso");
@@ -110,15 +100,57 @@ public class DeliveryAssignmentService {
                 .build();
         assignment = deliveryRepository.save(assignment);
         order.getDeliveryAssignments().addFirst(assignment);
-
-        order.setShippingMethod(courier ? ShippingMethod.COURIER : ShippingMethod.OWN_DELIVERY);
-        order.setCourierName(courier ? carrier.getName() : null);
-        order.setTrackingCode(courier ? blankToNull(request.trackingCode()) : null);
-        order.setStatus(OrderStatus.ASSIGNED);
+        applyCarrierToOrder(order, carrier, request.trackingCode());
 
         log.info("Entrega creada - id: {} | Pedido {} → ASSIGNED | Repartidor: {} ({})",
                 assignment.getId(), order.getId(), carrier.getName(), carrier.getType());
         return assignment;
+    }
+
+    /**
+     * Corrige la entrega en curso (se asignó al repartidor equivocado o se cargó mal el seguimiento): cambia el
+     * repartidor en el mismo intento, sin contarlo como fallido. Si ya estaba en camino, vuelve a asignado.
+     */
+    @Transactional
+    public void reassignActiveDeliveryOfOrder(UUID orderId, UUID carrierId, String trackingCode) {
+        log.info("Cambiando el repartidor del pedido ID: {} → repartidor ID: {}", orderId, carrierId);
+        List<DeliveryAssignment> active = deliveryRepository.findByOrderIdAndStatusIn(orderId, ACTIVE_STATUSES);
+        if (active.isEmpty()) {
+            throw new IllegalStateException("Este pedido no tiene una entrega en curso");
+        }
+        DeliveryAssignment assignment = active.getFirst();
+        Order order = assignment.getOrder();
+        Carrier previous = assignment.getCarrier();
+        Carrier carrier = carrierFor(order, carrierId);
+
+        assignment.setCarrier(carrier);
+        assignment.setZone(order.getCustomerAddress() != null ? order.getCustomerAddress().getZone() : null);
+        assignment.setStatus(DeliveryStatus.ASSIGNED);
+        deliveryRepository.save(assignment);
+        applyCarrierToOrder(order, carrier, trackingCode);
+
+        log.info("Entrega {} del pedido {}: {} → {}", assignment.getId(), orderId, previous.getName(), carrier.getName());
+    }
+
+    private Carrier carrierFor(Order order, UUID carrierId) {
+        Carrier carrier = carrierService.findCarrierOrThrow(carrierId);
+        if (!carrier.getActive()) {
+            throw new IllegalStateException("El repartidor '" + carrier.getName() + "' está desactivado");
+        }
+        if (carrier.getType() != CarrierType.COURIER && order.getCustomerAddress() == null) {
+            throw new IllegalStateException(
+                    "Para un repartidor propio el pedido necesita una dirección con zona. "
+                            + "Asignale una dirección o despachalo por courier.");
+        }
+        return carrier;
+    }
+
+    private static void applyCarrierToOrder(Order order, Carrier carrier, String trackingCode) {
+        boolean courier = carrier.getType() == CarrierType.COURIER;
+        order.setShippingMethod(courier ? ShippingMethod.COURIER : ShippingMethod.OWN_DELIVERY);
+        order.setCourierName(courier ? carrier.getName() : null);
+        order.setTrackingCode(courier ? blankToNull(trackingCode) : null);
+        order.setStatus(OrderStatus.ASSIGNED);
     }
 
     // ── Avanzar la entrega ──────────────────────────────────────────────────

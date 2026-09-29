@@ -149,6 +149,37 @@ class DeliveryAssignmentServiceTest {
                 .hasMessageContaining("no tiene una entrega en curso");
     }
 
+    @Test
+    void reassigningSwapsTheCarrierInTheSameAttemptAndGoesBackToAssigned() {
+        Order order = order(OrderStatus.IN_TRANSIT, true);
+        DeliveryAssignment delivery = activeDelivery(order);
+        delivery.setStatus(DeliveryStatus.IN_TRANSIT);
+
+        service.reassignActiveDeliveryOfOrder(order.getId(), courier.getId(), " AEX-9 ");
+
+        assertThat(delivery.getCarrier()).isEqualTo(courier);
+        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.ASSIGNED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ASSIGNED);
+        assertThat(order.getShippingMethod()).isEqualTo(ShippingMethod.COURIER);
+        assertThat(order.getCourierName()).isEqualTo("AEX");
+        assertThat(order.getTrackingCode()).isEqualTo("AEX-9");
+        verify(deliveryRepository, never()).existsByOrderIdAndStatusIn(any(), anyCollection());
+    }
+
+    @Test
+    void reassigningFollowsTheSameRulesAsAssigning() {
+        Order withoutZone = order(OrderStatus.ASSIGNED, false);
+        activeDelivery(withoutZone);
+        assertThatThrownBy(() -> service.reassignActiveDeliveryOfOrder(withoutZone.getId(), uncle.getId(), null))
+                .hasMessageContaining("dirección con zona");
+
+        Order withoutDelivery = order(OrderStatus.CONFIRMED, true);
+        when(deliveryRepository.findByOrderIdAndStatusIn(eq(withoutDelivery.getId()), anyCollection()))
+                .thenReturn(List.of());
+        assertThatThrownBy(() -> service.reassignActiveDeliveryOfOrder(withoutDelivery.getId(), uncle.getId(), null))
+                .hasMessageContaining("no tiene una entrega en curso");
+    }
+
     private DeliveryAssignment activeDelivery(Order order) {
         DeliveryAssignment delivery = DeliveryAssignment.builder()
                 .id(UUID.randomUUID()).order(order).carrier(uncle).zone(zone).status(DeliveryStatus.ASSIGNED).build();
