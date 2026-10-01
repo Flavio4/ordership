@@ -23,7 +23,7 @@ rendición a remitentes): no se mezcla acá.
 - **El email del usuario sigue siendo único global** (es el login). El resto de las unicidades pasan a ser por tienda.
 - Nada de registro público, planes, cobro ni marca propia por tienda por ahora: las tiendas se dan de alta a mano.
 
-## Cambios en la base (una migración Flyway, ej. `V16__tiendas.sql`)
+## Cambios en la base (una migración Flyway, la siguiente libre; ej. `V17__tiendas.sql`)
 
 1. Tabla `stores`: `id`, `name`, `timezone` (default `America/Asuncion`), `next_order_number`, `shopify_shop_domain`
    (único, nullable), `shopify_webhook_secret` (nullable), `active`, `created_at`.
