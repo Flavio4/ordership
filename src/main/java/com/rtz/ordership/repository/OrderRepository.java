@@ -110,6 +110,46 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             """)
     List<Object[]> salesSince(@Param("from") Instant from);
 
+    /**
+     * Totales de los pedidos no cancelados creados en [from, before), para el resumen por período:
+     * [pedidos, vendido, costo del delivery, pedidos pagados, cobrado, costo del delivery de los pagados,
+     * primer pedido].
+     */
+    @Query("""
+            SELECT COUNT(o),
+                   COALESCE(SUM(o.amountToCollect), 0),
+                   COALESCE(SUM(COALESCE(o.deliveryCost, 0)), 0),
+                   COALESCE(SUM(CASE WHEN o.paymentStatus = com.rtz.ordership.entity.enums.PaymentStatus.PAID
+                                     THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN o.paymentStatus = com.rtz.ordership.entity.enums.PaymentStatus.PAID
+                                     THEN o.amountToCollect ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN o.paymentStatus = com.rtz.ordership.entity.enums.PaymentStatus.PAID
+                                     THEN COALESCE(o.deliveryCost, 0) ELSE 0 END), 0),
+                   MIN(o.createdAt)
+            FROM Order o
+            WHERE o.createdAt >= :from AND o.createdAt < :before
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            """)
+    List<Object[]> orderTotals(@Param("from") Instant from, @Param("before") Instant before);
+
+    /**
+     * Lo mismo, de los ítems: [costo de los productos, costo de los productos de los pagados,
+     * pedidos con algún producto sin costo, pagados con algún producto sin costo].
+     */
+    @Query("""
+            SELECT COALESCE(SUM(i.quantity * i.unitCost), 0),
+                   COALESCE(SUM(CASE WHEN o.paymentStatus = com.rtz.ordership.entity.enums.PaymentStatus.PAID
+                                     THEN i.quantity * i.unitCost ELSE 0 END), 0),
+                   COUNT(DISTINCT CASE WHEN i.unitCost IS NULL THEN o.id END),
+                   COUNT(DISTINCT CASE WHEN i.unitCost IS NULL
+                                        AND o.paymentStatus = com.rtz.ordership.entity.enums.PaymentStatus.PAID
+                                       THEN o.id END)
+            FROM OrderItem i JOIN i.order o
+            WHERE o.createdAt >= :from AND o.createdAt < :before
+              AND o.status <> com.rtz.ordership.entity.enums.OrderStatus.CANCELLED
+            """)
+    List<Object[]> itemTotals(@Param("from") Instant from, @Param("before") Instant before);
+
     // Entregados sin el costo del delivery cargado (para completar la ganancia)
     @Query("""
             SELECT COUNT(o) FROM Order o

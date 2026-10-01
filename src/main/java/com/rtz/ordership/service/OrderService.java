@@ -487,6 +487,15 @@ public class OrderService {
         return OrderResponse.fromEntity(orderRepository.save(order));
     }
 
+    // Nota interna del operador: no va al cliente ni al repartidor. Vacía la borra
+    @Transactional
+    public OrderResponse updateNotes(UUID id, String notes) {
+        log.info("Nota del pedido ID: {}", id);
+        Order order = findOrderOrThrow(id);
+        order.setNotes(blankToNull(notes));
+        return OrderResponse.fromEntity(orderRepository.save(order));
+    }
+
     @Transactional(readOnly = true)
     public AgendaSummaryResponse getAgendaSummary(LocalDate today, OrderSource source) {
         return new AgendaSummaryResponse(

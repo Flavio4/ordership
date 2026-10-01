@@ -7,6 +7,7 @@ import com.rtz.ordership.dto.request.OrderDeliveryCostRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryDateRequest;
 import com.rtz.ordership.dto.request.OrderDeliveryRequest;
 import com.rtz.ordership.dto.request.OrderItemsUpdateRequest;
+import com.rtz.ordership.dto.request.OrderNotesRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
 import com.rtz.ordership.dto.request.OrderStatusUpdateRequest;
 import com.rtz.ordership.dto.request.PaymentStatusUpdateRequest;
@@ -84,6 +85,15 @@ public class OrderController {
     public ResponseEntity<OrderResponse> updateDeliveryDate(@PathVariable UUID id,
             @RequestBody OrderDeliveryDateRequest request) {
         return ResponseEntity.ok(orderService.updateDeliveryDate(id, request.deliveryDate()));
+    }
+
+    @PatchMapping("/{id}/notes")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Nota del pedido", description = "Nota interna del operador (no va al cliente ni al repartidor); "
+            + "vacía o null la borra")
+    public ResponseEntity<OrderResponse> updateNotes(@PathVariable UUID id,
+            @Valid @RequestBody OrderNotesRequest request) {
+        return ResponseEntity.ok(orderService.updateNotes(id, request.notes()));
     }
 
     @PatchMapping("/{id}/delivery-cost")

@@ -93,6 +93,46 @@ public class DashboardService {
         return dashboard;
     }
 
+    /**
+     * Resumen de un período elegido [from, to] (días en hora del negocio). Sin from: desde el primer pedido.
+     * Sin to: hasta hoy. Lo suma la base, así un período largo no trae todos los pedidos.
+     */
+    @Transactional(readOnly = true)
+    public Period getSummary(LocalDate from, LocalDate to) {
+        return getSummary(from, to, Clock.system(zone));
+    }
+
+    Period getSummary(LocalDate from, LocalDate to, Clock clock) {
+        LocalDate until = to != null ? to : LocalDate.now(clock);
+        if (from != null && from.isAfter(until)) {
+            throw new IllegalArgumentException("La fecha \"desde\" no puede ser posterior a \"hasta\"");
+        }
+        Instant start = from != null ? from.atStartOfDay(zone).toInstant() : Instant.EPOCH;
+        Instant before = until.plusDays(1).atStartOfDay(zone).toInstant();
+
+        // [pedidos, vendido, delivery, pagados, cobrado, delivery de los pagados, primer pedido]
+        Object[] orders = orderRepository.orderTotals(start, before).getFirst();
+        // [costo de productos, costo de productos de los pagados, pedidos sin costo, pagados sin costo]
+        Object[] items = orderRepository.itemTotals(start, before).getFirst();
+
+        BigDecimal revenue = decimal(orders[1]);
+        BigDecimal collectedRevenue = decimal(orders[4]);
+        LocalDate firstDay = from != null ? from
+                : orders[6] != null ? ((Instant) orders[6]).atZone(zone).toLocalDate() : until;
+        Period summary = new Period(firstDay, until,
+                ((Number) orders[0]).longValue(),
+                revenue,
+                revenue.subtract(decimal(items[0])).subtract(decimal(orders[2])),
+                ((Number) items[2]).longValue(),
+                ((Number) orders[3]).longValue(),
+                collectedRevenue,
+                collectedRevenue.subtract(decimal(items[1])).subtract(decimal(orders[5])),
+                ((Number) items[3]).longValue());
+        log.info("Resumen del {} al {} - pedidos: {}, ventas: {}, ganancia: {}",
+                summary.from(), summary.to(), summary.orders(), summary.revenue(), summary.profit());
+        return summary;
+    }
+
     private record Sale(LocalDate day, BigDecimal revenue, BigDecimal profit, boolean withoutCost, boolean paid) {
     }
 

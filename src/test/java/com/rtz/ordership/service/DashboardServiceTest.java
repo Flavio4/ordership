@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -122,6 +123,50 @@ class DashboardServiceTest {
         assertThat(dashboard.previousMonth().to()).isEqualTo(LocalDate.of(2026, 8, 26));
         assertThat(dashboard.previousMonth().revenue()).isEqualByComparingTo("100000");
         assertThat(dashboard.previousMonth().profit()).isEqualByComparingTo("60000");
+    }
+
+    @Test
+    void theSummaryAddsUpThePeriodInParaguayAndSubtractsCosts() {
+        Instant from = Instant.parse("2026-08-01T03:00:00Z");
+        Instant before = Instant.parse("2026-09-01T03:00:00Z");
+        when(orderRepository.orderTotals(from, before)).thenReturn(List.<Object[]>of(new Object[] {
+                34L, new BigDecimal("5000000"), new BigDecimal("300000"),
+                30L, new BigDecimal("4400000"), new BigDecimal("250000"), Instant.parse("2026-08-01T12:00:00Z") }));
+        when(orderRepository.itemTotals(from, before)).thenReturn(List.<Object[]>of(new Object[] {
+                new BigDecimal("2700000"), new BigDecimal("2400000"), 2L, 1L }));
+
+        var summary = service.getSummary(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), CLOCK);
+
+        assertThat(summary.from()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(summary.to()).isEqualTo(LocalDate.of(2026, 8, 31));
+        assertThat(summary.orders()).isEqualTo(34);
+        assertThat(summary.revenue()).isEqualByComparingTo("5000000");
+        assertThat(summary.profit()).isEqualByComparingTo("2000000");
+        assertThat(summary.ordersWithoutCost()).isEqualTo(2);
+        assertThat(summary.collectedOrders()).isEqualTo(30);
+        assertThat(summary.collectedRevenue()).isEqualByComparingTo("4400000");
+        assertThat(summary.collectedProfit()).isEqualByComparingTo("1750000");
+        assertThat(summary.collectedWithoutCost()).isEqualTo(1);
+    }
+
+    @Test
+    void theSummaryWithoutFromStartsAtTheFirstOrderAndWithoutToEndsToday() {
+        Instant before = Instant.parse("2026-09-27T03:00:00Z");
+        when(orderRepository.orderTotals(Instant.EPOCH, before)).thenReturn(List.<Object[]>of(new Object[] {
+                3L, new BigDecimal("900000"), BigDecimal.ZERO, 0L, BigDecimal.ZERO, BigDecimal.ZERO,
+                // 22:00 del 3 de marzo en Paraguay = 01:00 UTC del 4
+                Instant.parse("2025-03-04T01:00:00Z") }));
+        when(orderRepository.itemTotals(Instant.EPOCH, before)).thenReturn(List.<Object[]>of(new Object[] {
+                BigDecimal.ZERO, BigDecimal.ZERO, 0L, 0L }));
+
+        var summary = service.getSummary(null, null, CLOCK);
+
+        assertThat(summary.from()).isEqualTo(LocalDate.of(2025, 3, 3));
+        assertThat(summary.to()).isEqualTo(TODAY);
+        assertThat(summary.orders()).isEqualTo(3);
+
+        assertThatThrownBy(() -> service.getSummary(TODAY, TODAY.minusDays(1), CLOCK))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
