@@ -40,6 +40,7 @@ import com.rtz.ordership.entity.enums.Currency;
 import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
 import com.rtz.ordership.exception.ResourceNotFoundException;
@@ -174,13 +175,14 @@ public class OrderService {
                 .createdBy(currentUser)
                 .status(OrderStatus.CONFIRMED)
                 .confirmedAt(Instant.now())
-                .paymentStatus(request.paymentStatus() != null ? request.paymentStatus() : PaymentStatus.UNPAID)
                 .source(OrderSource.MANUAL)
                 .notes(blankToNull(request.notes()))
                 .deliveryDate(request.deliveryDate())
                 .totalAmount(BigDecimal.ZERO)
                 .amountToCollect(BigDecimal.ZERO)
                 .build();
+        applyPayment(order, request.paymentStatus() != null ? request.paymentStatus() : PaymentStatus.UNPAID,
+                request.paymentMethod());
 
         order.getItems().addAll(buildManualItems(order, request.items(), Map.of()));
         applyTotals(order, request.deliveryFee(), request.discount());
@@ -422,12 +424,22 @@ public class OrderService {
 
     @Transactional
     public OrderResponse updatePaymentStatus(UUID id, PaymentStatusUpdateRequest request) {
-        log.info("Actualizando pago del pedido ID: {} → {}", id, request.paymentStatus());
+        log.info("Actualizando pago del pedido ID: {} → {} ({})", id, request.paymentStatus(), request.paymentMethod());
         Order order = findOrderOrThrow(id);
-        order.setPaymentStatus(request.paymentStatus());
+        applyPayment(order, request.paymentStatus(), request.paymentMethod());
         order = orderRepository.save(order);
-        log.info("Pedido ID: {} - pago actualizado a {}", id, request.paymentStatus());
+        log.info("Pedido ID: {} - pago actualizado a {} ({})", id, order.getPaymentStatus(), order.getPaymentMethod());
         return OrderResponse.fromEntity(order);
+    }
+
+    // Sin pagar no tiene forma de pago; pagado o parcial sin forma deja la que ya tenía (apps sin el selector)
+    private void applyPayment(Order order, PaymentStatus status, PaymentMethod method) {
+        order.setPaymentStatus(status);
+        if (status == PaymentStatus.UNPAID) {
+            order.setPaymentMethod(null);
+        } else if (method != null) {
+            order.setPaymentMethod(method);
+        }
     }
 
     // ── Completar dirección de un pedido (pedidos Shopify sin dirección) ────

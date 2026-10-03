@@ -12,6 +12,7 @@ import com.rtz.ordership.entity.User;
 import com.rtz.ordership.entity.enums.Currency;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.repository.CustomerAddressRepository;
 import com.rtz.ordership.repository.CustomerRepository;
@@ -71,7 +72,7 @@ class OrderServiceManualTest {
     @Test
     void aManualOrderIsBornConfirmedWithItsDateAndTheTotalIncludesDeliveryAndDiscount() {
         OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, "  De tarde ",
-                new BigDecimal("15000"), new BigDecimal("9000"), PaymentStatus.PAID,
+                new BigDecimal("15000"), new BigDecimal("9000"), PaymentStatus.PAID, PaymentMethod.TRANSFER,
                 List.of(new OrderItemRequest(curcuma.getId(), 2), new OrderItemRequest(miel.getId(), 1))));
 
         assertThat(order.status()).isEqualTo(OrderStatus.CONFIRMED);
@@ -79,6 +80,7 @@ class OrderServiceManualTest {
         assertThat(order.source()).isEqualTo(OrderSource.MANUAL);
         assertThat(order.deliveryDate()).isEqualTo(DELIVERY);
         assertThat(order.paymentStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(order.paymentMethod()).isEqualTo(PaymentMethod.TRANSFER);
         assertThat(order.notes()).isEqualTo("De tarde");
         assertThat(order.createdByName()).isEqualTo("Operador");
         assertThat(order.totalAmount()).isEqualByComparingTo("408000");
@@ -119,7 +121,7 @@ class OrderServiceManualTest {
     @Test
     void theDiscountCannotBeBiggerThanTheTotal() {
         assertThatThrownBy(() -> orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
-                null, new BigDecimal("200000"), null, List.of(new OrderItemRequest(curcuma.getId(), 1)))))
+                null, new BigDecimal("200000"), null, null, List.of(new OrderItemRequest(curcuma.getId(), 1)))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -149,7 +151,7 @@ class OrderServiceManualTest {
         unreviewed.setNeedsReview(true);
 
         OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
-                new BigDecimal("15000"), null, null, List.of(new OrderItemRequest(curcuma.getId(), 2))));
+                new BigDecimal("15000"), null, null, null, List.of(new OrderItemRequest(curcuma.getId(), 2))));
         assertThat(order.items().get(0).unitCost()).isEqualByComparingTo("100000");
         // 373.000 cobrados - 200.000 de productos, sin costo de delivery cargado
         assertThat(order.profit().productCost()).isEqualByComparingTo("200000");
@@ -203,7 +205,7 @@ class OrderServiceManualTest {
     }
 
     private OrderRequest request(OrderItemRequest... items) {
-        return new OrderRequest(customer.getId(), null, DELIVERY, null, null, null, null, List.of(items));
+        return new OrderRequest(customer.getId(), null, DELIVERY, null, null, null, null, null, List.of(items));
     }
 
     // Pedido con 2 cúrcumas vendidas a 179.000, con costo 150.000 (stock ya descontado: 5 → 3)

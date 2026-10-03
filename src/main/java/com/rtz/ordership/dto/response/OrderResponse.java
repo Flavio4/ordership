@@ -3,6 +3,7 @@ package com.rtz.ordership.dto.response;
 import com.rtz.ordership.entity.Order;
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
 
@@ -27,6 +28,7 @@ public record OrderResponse(
                 String shippingAddressRaw,
                 OrderStatus status,
                 PaymentStatus paymentStatus,
+                PaymentMethod paymentMethod,
                 OrderSource source,
                 ShippingMethod shippingMethod,
                 String courierName,
@@ -64,6 +66,7 @@ public record OrderResponse(
                                 order.getShippingAddressRaw(),
                                 order.getStatus(),
                                 order.getPaymentStatus(),
+                                order.getPaymentMethod(),
                                 order.getSource(),
                                 order.getShippingMethod(),
                                 order.getCourierName(),

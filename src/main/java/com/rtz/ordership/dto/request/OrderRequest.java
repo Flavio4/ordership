@@ -1,5 +1,6 @@
 package com.rtz.ordership.dto.request;
 
+import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -25,5 +26,7 @@ public record OrderRequest(
         @DecimalMin(value = "0", message = "El descuento no puede ser negativo") BigDecimal discount,
         // Sin pagar si no viene
         PaymentStatus paymentStatus,
+        // Solo cuenta si está pagado o parcial
+        PaymentMethod paymentMethod,
         @NotEmpty(message = "El pedido debe tener al menos un ítem") @Valid List<OrderItemRequest> items) {
 }

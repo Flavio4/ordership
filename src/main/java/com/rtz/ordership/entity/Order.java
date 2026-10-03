@@ -2,6 +2,7 @@ package com.rtz.ordership.entity;
 
 import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
 import jakarta.persistence.*;
@@ -56,6 +57,10 @@ public class Order {
     @Builder.Default
     @Column(nullable = false)
     private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    // Cómo pagó; null si está sin pagar (o se marcó pagado antes de que existiera)
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
