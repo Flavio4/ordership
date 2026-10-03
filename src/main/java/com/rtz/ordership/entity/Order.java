@@ -89,12 +89,12 @@ public class Order {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
-    // Lo que el cliente debe pagar. En pedidos de Shopify es el total de Shopify (con ofertas y extras);
-    // en pedidos manuales, totalAmount + deliveryFee - discount
+    // Lo que el cliente debe pagar. En pedidos de Shopify es el total de Shopify (con ofertas y extras) hasta que se
+    // editan sus productos; en los manuales y los editados, totalAmount + deliveryFee - discount
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amountToCollect;
 
-    // Solo en pedidos manuales; en 0 en los de Shopify
+    // En los de Shopify, 0 hasta que se editan sus productos
     @Builder.Default
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal deliveryFee = BigDecimal.ZERO;

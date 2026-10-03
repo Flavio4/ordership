@@ -234,15 +234,41 @@ class OrderServiceManualTest {
     }
 
     @Test
-    void shopifyDeliveredOrCancelledOrdersCannotBeEdited() {
+    void aShopifyOrderIsEditedLikeAManualOneAndItsShopifyDiscountBecomesALine() {
+        Order shopify = existingOrder(OrderSource.SHOPIFY, OrderStatus.CONFIRMED);
+        shopify.setAmountToCollect(new BigDecimal("320000"));
+
+        OrderResponse edited = orderService.updateItems(shopify.getId(), new OrderItemsUpdateRequest(
+                List.of(new OrderItemRequest(curcuma.getId(), 1)), null, null,
+                List.of(new OrderDiscountRequest("Descuentos de Shopify", new BigDecimal("19000")))));
+
+        assertThat(curcuma.getStock()).isEqualTo(4);
+        assertThat(edited.source()).isEqualTo(OrderSource.SHOPIFY);
+        assertThat(edited.items().get(0).unitPrice()).isEqualByComparingTo("179000");
+        assertThat(edited.amountToCollect()).isEqualByComparingTo("160000");
+    }
+
+    @Test
+    void aProductInDollarsAlreadyInTheOrderIsKept() {
+        Order shopify = existingOrder(OrderSource.SHOPIFY, OrderStatus.CONFIRMED);
+        curcuma.setCurrency(Currency.USD);
+
+        OrderResponse edited = orderService.updateItems(shopify.getId(), new OrderItemsUpdateRequest(
+                List.of(new OrderItemRequest(curcuma.getId(), 1)), null, null, null));
+
+        assertThat(edited.items().get(0).unitPrice()).isEqualByComparingTo("179000");
+    }
+
+    @Test
+    void deliveredOrCancelledOrdersCannotBeEdited() {
         OrderItemsUpdateRequest request = new OrderItemsUpdateRequest(
                 List.of(new OrderItemRequest(curcuma.getId(), 1)), null, null, null);
 
-        Order shopify = existingOrder(OrderSource.SHOPIFY, OrderStatus.CONFIRMED);
-        assertThatThrownBy(() -> orderService.updateItems(shopify.getId(), request)).hasMessageContaining("Shopify");
-
         Order delivered = existingOrder(OrderSource.MANUAL, OrderStatus.DELIVERED);
         assertThatThrownBy(() -> orderService.updateItems(delivered.getId(), request))
+                .isInstanceOf(IllegalStateException.class);
+        Order cancelledShopify = existingOrder(OrderSource.SHOPIFY, OrderStatus.CANCELLED);
+        assertThatThrownBy(() -> orderService.updateItems(cancelledShopify.getId(), request))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(curcuma.getStock()).isEqualTo(3);
     }

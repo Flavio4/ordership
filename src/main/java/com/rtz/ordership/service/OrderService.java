@@ -199,17 +199,14 @@ public class OrderService {
 
     /**
      * Reemplaza los ítems: devuelve el stock de los anteriores y descuenta el de los nuevos. Los productos que ya
-     * estaban conservan el precio con el que se vendieron; los nuevos toman el del catálogo.
+     * estaban conservan el precio con el que se vendieron; los nuevos toman el del catálogo. Vale también para los de
+     * Shopify (se cobran al entregar): desde ahí lo que se cobra es lo de OrderShip, y en Shopify queda el total original.
      */
     @Transactional
     public OrderResponse updateItems(UUID id, OrderItemsUpdateRequest request) {
         log.info("Editando productos del pedido ID: {} - {} ítems", id, request.items().size());
         Order order = findOrderOrThrow(id);
 
-        if (order.getSource() != OrderSource.MANUAL) {
-            throw new IllegalStateException(
-                    "Los productos de un pedido de Shopify no se editan: el cliente ya pagó ese total en Shopify");
-        }
         if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new IllegalStateException("No se pueden editar los productos de un pedido " + order.getStatus());
         }
@@ -247,7 +244,8 @@ public class OrderService {
             if (!product.getActive() && sold == null) {
                 throw new IllegalStateException("El producto '" + product.getName() + "' está desactivado");
             }
-            if (product.getCurrency() != Currency.PYG) {
+            // Uno que ya estaba (de Shopify puede venir en dólares) conserva su precio en guaraníes
+            if (product.getCurrency() != Currency.PYG && sold == null) {
                 throw new IllegalStateException("'" + product.getName()
                         + "' tiene el precio en dólares; los pedidos se cobran en guaraníes");
             }
