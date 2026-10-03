@@ -1,8 +1,10 @@
 package com.rtz.ordership.service;
 
+import com.rtz.ordership.dto.request.OrderDiscountRequest;
 import com.rtz.ordership.dto.request.OrderItemRequest;
 import com.rtz.ordership.dto.request.OrderItemsUpdateRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
+import com.rtz.ordership.dto.response.OrderDiscountResponse;
 import com.rtz.ordership.dto.response.OrderResponse;
 import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.entity.Order;
@@ -73,7 +75,7 @@ class OrderServiceManualTest {
     void aManualOrderIsBornConfirmedWithItsDateAndTheTotalIncludesDeliveryAndDiscount() {
         OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, "  De tarde ",
                 new BigDecimal("15000"), new BigDecimal("9000"), PaymentStatus.PAID, PaymentMethod.TRANSFER,
-                List.of(new OrderItemRequest(curcuma.getId(), 2), new OrderItemRequest(miel.getId(), 1))));
+                List.of(new OrderItemRequest(curcuma.getId(), 2), new OrderItemRequest(miel.getId(), 1)), null));
 
         assertThat(order.status()).isEqualTo(OrderStatus.CONFIRMED);
         assertThat(order.confirmedAt()).isNotNull();
@@ -121,8 +123,49 @@ class OrderServiceManualTest {
     @Test
     void theDiscountCannotBeBiggerThanTheTotal() {
         assertThatThrownBy(() -> orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
-                null, new BigDecimal("200000"), null, null, List.of(new OrderItemRequest(curcuma.getId(), 1)))))
+                null, new BigDecimal("200000"), null, null, List.of(new OrderItemRequest(curcuma.getId(), 1)), null)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void severalDiscountsAreSavedInOrderWithTheirReasonAndAddUp() {
+        OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
+                null, null, null, null, List.of(new OrderItemRequest(curcuma.getId(), 1)),
+                List.of(new OrderDiscountRequest("  Cliente frecuente ", new BigDecimal("10000")),
+                        new OrderDiscountRequest(" ", new BigDecimal("5000")))));
+
+        assertThat(order.discounts()).extracting(OrderDiscountResponse::label).containsExactly("Cliente frecuente", null);
+        assertThat(order.discount()).isEqualByComparingTo("15000");
+        assertThat(order.amountToCollect()).isEqualByComparingTo("164000");
+    }
+
+    @Test
+    void anOldAppSendingASingleDiscountGetsOneLineWithoutReason() {
+        OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
+                null, new BigDecimal("9000"), null, null, List.of(new OrderItemRequest(curcuma.getId(), 1)), null));
+
+        assertThat(order.discounts()).singleElement().satisfies(discount -> {
+            assertThat(discount.label()).isNull();
+            assertThat(discount.amount()).isEqualByComparingTo("9000");
+        });
+        assertThat(order.amountToCollect()).isEqualByComparingTo("170000");
+    }
+
+    @Test
+    void editingReplacesTheDiscountsAndAnEmptyListRemovesThem() {
+        Order order = existingOrder(OrderSource.MANUAL, OrderStatus.CONFIRMED);
+        List<OrderItemRequest> items = List.of(new OrderItemRequest(curcuma.getId(), 1));
+
+        OrderResponse withDiscount = orderService.updateItems(order.getId(), new OrderItemsUpdateRequest(items, null,
+                null, List.of(new OrderDiscountRequest("Producto golpeado", new BigDecimal("20000")))));
+        assertThat(withDiscount.discounts()).extracting(OrderDiscountResponse::label).containsExactly("Producto golpeado");
+        assertThat(withDiscount.amountToCollect()).isEqualByComparingTo("159000");
+
+        OrderResponse withoutDiscount = orderService.updateItems(order.getId(),
+                new OrderItemsUpdateRequest(items, null, null, List.of()));
+        assertThat(withoutDiscount.discounts()).isEmpty();
+        assertThat(withoutDiscount.discount()).isEqualByComparingTo("0");
+        assertThat(withoutDiscount.amountToCollect()).isEqualByComparingTo("179000");
     }
 
     @Test
@@ -132,7 +175,7 @@ class OrderServiceManualTest {
 
         OrderResponse edited = orderService.updateItems(order.getId(), new OrderItemsUpdateRequest(
                 List.of(new OrderItemRequest(curcuma.getId(), 1), new OrderItemRequest(miel.getId(), 2)),
-                new BigDecimal("10000"), null));
+                new BigDecimal("10000"), null, null));
 
         // 3 + 2 devueltas - 1 nueva
         assertThat(curcuma.getStock()).isEqualTo(4);
@@ -151,7 +194,7 @@ class OrderServiceManualTest {
         unreviewed.setNeedsReview(true);
 
         OrderResponse order = orderService.createOrder(new OrderRequest(customer.getId(), null, DELIVERY, null,
-                new BigDecimal("15000"), null, null, null, List.of(new OrderItemRequest(curcuma.getId(), 2))));
+                new BigDecimal("15000"), null, null, null, List.of(new OrderItemRequest(curcuma.getId(), 2)), null));
         assertThat(order.items().get(0).unitCost()).isEqualByComparingTo("100000");
         // 373.000 cobrados - 200.000 de productos, sin costo de delivery cargado
         assertThat(order.profit().productCost()).isEqualByComparingTo("200000");
@@ -185,7 +228,7 @@ class OrderServiceManualTest {
         curcuma.setPurchasePrice(new BigDecimal("170000"));
 
         OrderResponse edited = orderService.updateItems(order.getId(), new OrderItemsUpdateRequest(
-                List.of(new OrderItemRequest(curcuma.getId(), 3)), null, null));
+                List.of(new OrderItemRequest(curcuma.getId(), 3)), null, null, null));
 
         assertThat(edited.items().get(0).unitCost()).isEqualByComparingTo("150000");
     }
@@ -193,7 +236,7 @@ class OrderServiceManualTest {
     @Test
     void shopifyDeliveredOrCancelledOrdersCannotBeEdited() {
         OrderItemsUpdateRequest request = new OrderItemsUpdateRequest(
-                List.of(new OrderItemRequest(curcuma.getId(), 1)), null, null);
+                List.of(new OrderItemRequest(curcuma.getId(), 1)), null, null, null);
 
         Order shopify = existingOrder(OrderSource.SHOPIFY, OrderStatus.CONFIRMED);
         assertThatThrownBy(() -> orderService.updateItems(shopify.getId(), request)).hasMessageContaining("Shopify");
@@ -205,7 +248,7 @@ class OrderServiceManualTest {
     }
 
     private OrderRequest request(OrderItemRequest... items) {
-        return new OrderRequest(customer.getId(), null, DELIVERY, null, null, null, null, null, List.of(items));
+        return new OrderRequest(customer.getId(), null, DELIVERY, null, null, null, null, null, List.of(items), null);
     }
 
     // Pedido con 2 cúrcumas vendidas a 179.000, con costo 150.000 (stock ya descontado: 5 → 3)

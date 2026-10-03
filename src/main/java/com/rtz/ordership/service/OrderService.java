@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.rtz.ordership.dto.request.OrderAddressUpdateRequest;
+import com.rtz.ordership.dto.request.OrderDiscountRequest;
 import com.rtz.ordership.dto.request.OrderItemRequest;
 import com.rtz.ordership.dto.request.OrderItemsUpdateRequest;
 import com.rtz.ordership.dto.request.OrderRequest;
@@ -32,6 +33,7 @@ import com.rtz.ordership.entity.Customer;
 import com.rtz.ordership.entity.CustomerAddress;
 import com.rtz.ordership.entity.DeliveryAssignment;
 import com.rtz.ordership.entity.Order;
+import com.rtz.ordership.entity.OrderDiscount;
 import com.rtz.ordership.entity.OrderItem;
 import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.entity.ShopifyReference;
@@ -185,7 +187,7 @@ public class OrderService {
                 request.paymentMethod());
 
         order.getItems().addAll(buildManualItems(order, request.items(), Map.of()));
-        applyTotals(order, request.deliveryFee(), request.discount());
+        applyTotals(order, request.deliveryFee(), discountLines(request.discounts(), request.discount()));
 
         Order saved = orderRepository.save(order);
         log.info("Pedido manual creado - id: {}, cliente: {}, a cobrar: {}, ítems: {}",
@@ -220,7 +222,7 @@ public class OrderService {
         List<OrderItem> items = buildManualItems(order, request.items(), soldItems);
         order.getItems().clear();
         order.getItems().addAll(items);
-        applyTotals(order, request.deliveryFee(), request.discount());
+        applyTotals(order, request.deliveryFee(), discountLines(request.discounts(), request.discount()));
 
         Order saved = orderRepository.save(order);
         log.info("Pedido ID: {} - productos editados, a cobrar: {}", id, saved.getAmountToCollect());
@@ -257,10 +259,28 @@ public class OrderService {
         }).toList();
     }
 
-    // A cobrar = productos + envío - descuento
-    private void applyTotals(Order order, BigDecimal deliveryFee, BigDecimal discount) {
+    // Las apps anteriores mandan un solo descuento sin motivo; si viene la lista, manda la lista
+    private static List<OrderDiscountRequest> discountLines(List<OrderDiscountRequest> discounts, BigDecimal discount) {
+        if (discounts != null) {
+            return discounts;
+        }
+        return discount != null && discount.signum() > 0 ? List.of(new OrderDiscountRequest(null, discount)) : List.of();
+    }
+
+    // A cobrar = productos + envío - descuentos
+    private void applyTotals(Order order, BigDecimal deliveryFee, List<OrderDiscountRequest> discounts) {
         BigDecimal fee = deliveryFee != null ? deliveryFee : BigDecimal.ZERO;
-        BigDecimal off = discount != null ? discount : BigDecimal.ZERO;
+        order.getDiscounts().clear();
+        for (int i = 0; i < discounts.size(); i++) {
+            OrderDiscountRequest discount = discounts.get(i);
+            order.getDiscounts().add(OrderDiscount.builder()
+                    .order(order)
+                    .label(blankToNull(discount.label()))
+                    .amount(discount.amount())
+                    .position(i)
+                    .build());
+        }
+        BigDecimal off = discounts.stream().map(OrderDiscountRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = sumSubtotals(order.getItems());
         BigDecimal toCollect = total.add(fee).subtract(off);
         if (toCollect.signum() < 0) {

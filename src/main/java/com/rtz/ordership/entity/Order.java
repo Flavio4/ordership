@@ -99,9 +99,15 @@ public class Order {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal deliveryFee = BigDecimal.ZERO;
 
+    // Suma de las líneas de discounts
     @Builder.Default
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal discount = BigDecimal.ZERO;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC")
+    private List<OrderDiscount> discounts = new ArrayList<>();
 
     // Lo que se le pagó al repartidor o courier; lo carga el operador (null = sin cargar)
     @Column(precision = 12, scale = 2)

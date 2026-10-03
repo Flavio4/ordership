@@ -37,6 +37,7 @@ public record OrderResponse(
                 BigDecimal amountToCollect,
                 BigDecimal deliveryFee,
                 BigDecimal discount,
+                List<OrderDiscountResponse> discounts,
                 OrderProfitResponse profit,
                 String shopifyOrderName,
                 String shopifyAdminUrl,
@@ -75,6 +76,9 @@ public record OrderResponse(
                                 order.getAmountToCollect(),
                                 order.getDeliveryFee(),
                                 order.getDiscount(),
+                                order.getDiscounts().stream()
+                                                .map(OrderDiscountResponse::fromEntity)
+                                                .toList(),
                                 OrderProfitResponse.fromEntity(order),
                                 order.getShopify() != null ? order.getShopify().getOrderName() : null,
                                 order.getShopify() != null ? order.getShopify().getAdminUrl() : null,

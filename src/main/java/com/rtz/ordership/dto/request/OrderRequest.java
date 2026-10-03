@@ -23,10 +23,13 @@ public record OrderRequest(
         @NotNull(message = "Elegí la fecha de entrega") LocalDate deliveryDate,
         String notes,
         @DecimalMin(value = "0", message = "El costo de envío no puede ser negativo") BigDecimal deliveryFee,
+        // Un solo descuento sin motivo: lo mandan las apps anteriores a discounts
         @DecimalMin(value = "0", message = "El descuento no puede ser negativo") BigDecimal discount,
         // Sin pagar si no viene
         PaymentStatus paymentStatus,
         // Solo cuenta si está pagado o parcial
         PaymentMethod paymentMethod,
-        @NotEmpty(message = "El pedido debe tener al menos un ítem") @Valid List<OrderItemRequest> items) {
+        @NotEmpty(message = "El pedido debe tener al menos un ítem") @Valid List<OrderItemRequest> items,
+        // Si viene (aunque sea vacía), reemplaza a discount
+        @Valid List<OrderDiscountRequest> discounts) {
 }
