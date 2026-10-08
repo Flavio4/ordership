@@ -16,6 +16,7 @@ import com.rtz.ordership.entity.enums.OrderSource;
 import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
+import com.rtz.ordership.entity.enums.StockMovementType;
 import com.rtz.ordership.repository.CustomerAddressRepository;
 import com.rtz.ordership.repository.CustomerRepository;
 import com.rtz.ordership.repository.OrderRepository;
@@ -35,6 +36,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 class OrderServiceManualTest {
@@ -43,6 +47,7 @@ class OrderServiceManualTest {
 
     private OrderRepository orderRepository;
     private ProductRepository productRepository;
+    private StockMovementService stockMovements;
     private OrderService orderService;
     private Customer customer;
     private Product curcuma;
@@ -54,8 +59,9 @@ class OrderServiceManualTest {
         productRepository = mock(ProductRepository.class);
         CustomerRepository customerRepository = mock(CustomerRepository.class);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stockMovements = mock(StockMovementService.class);
         orderService = new OrderService(orderRepository, customerRepository, mock(CustomerAddressRepository.class),
-                productRepository);
+                productRepository, stockMovements);
 
         customer = Customer.builder().id(UUID.randomUUID()).fullName("Ana Rojas").phone("+595981000111").build();
         when(customerRepository.findById(customer.getId())).thenReturn(Optional.of(customer));
@@ -96,6 +102,35 @@ class OrderServiceManualTest {
         orderService.createOrder(request(new OrderItemRequest(miel.getId(), 3)));
 
         assertThat(miel.getStock()).isEqualTo(-3);
+    }
+
+    @Test
+    void eachSoldProductGoesToTheStockHistory() {
+        orderService.createOrder(request(
+                new OrderItemRequest(curcuma.getId(), 2), new OrderItemRequest(miel.getId(), 1)));
+
+        verify(stockMovements).record(eq(curcuma), eq(-2), eq(StockMovementType.SALE),
+                argThat(order -> order.getSource() == OrderSource.MANUAL), isNull());
+        verify(stockMovements).record(eq(miel), eq(-1), eq(StockMovementType.SALE), any(), isNull());
+    }
+
+    @Test
+    void editingRecordsOnlyWhatChangedForEachProduct() {
+        Order order = existingOrder(OrderSource.MANUAL, OrderStatus.CONFIRMED);
+        Product te = product("Té", "40000", 4);
+
+        orderService.updateItems(order.getId(), new OrderItemsUpdateRequest(
+                List.of(new OrderItemRequest(curcuma.getId(), 3), new OrderItemRequest(te.getId(), 1)), null, null, null));
+
+        verify(stockMovements).record(curcuma, -1, StockMovementType.ORDER_EDIT, order, null);
+        verify(stockMovements).record(te, -1, StockMovementType.ORDER_EDIT, order, null);
+        verifyNoMoreInteractions(stockMovements);
+
+        clearInvocations(stockMovements);
+        orderService.updateItems(order.getId(), new OrderItemsUpdateRequest(
+                List.of(new OrderItemRequest(te.getId(), 1)), null, null, null));
+        verify(stockMovements).record(curcuma, 3, StockMovementType.ORDER_EDIT, order, null);
+        verifyNoMoreInteractions(stockMovements);
     }
 
     @Test

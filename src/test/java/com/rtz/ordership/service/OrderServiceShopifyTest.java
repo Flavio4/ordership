@@ -34,7 +34,8 @@ class OrderServiceShopifyTest {
         productRepository = mock(ProductRepository.class);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         orderService = new OrderService(orderRepository, mock(CustomerRepository.class),
-                mock(CustomerAddressRepository.class), productRepository);
+                mock(CustomerAddressRepository.class), productRepository,
+                mock(StockMovementService.class));
     }
 
     @Test

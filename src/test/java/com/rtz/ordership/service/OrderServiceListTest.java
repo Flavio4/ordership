@@ -30,7 +30,8 @@ class OrderServiceListTest {
         when(orderRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 anyBoolean(), anyBoolean(), any(), any())).thenReturn(Page.empty());
         orderService = new OrderService(orderRepository, mock(CustomerRepository.class),
-                mock(CustomerAddressRepository.class), mock(ProductRepository.class));
+                mock(CustomerAddressRepository.class), mock(ProductRepository.class),
+                mock(StockMovementService.class));
     }
 
     @Test

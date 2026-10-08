@@ -32,7 +32,8 @@ class OrderServicePaymentTest {
         orderRepository = mock(OrderRepository.class);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         orderService = new OrderService(orderRepository, mock(CustomerRepository.class),
-                mock(CustomerAddressRepository.class), mock(ProductRepository.class));
+                mock(CustomerAddressRepository.class), mock(ProductRepository.class),
+                mock(StockMovementService.class));
     }
 
     @Test

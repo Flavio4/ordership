@@ -4,6 +4,7 @@ import com.rtz.ordership.dto.request.ProductRequest;
 import com.rtz.ordership.dto.request.ProductUpdateRequest;
 import com.rtz.ordership.dto.response.ProductResponse;
 import com.rtz.ordership.entity.Product;
+import com.rtz.ordership.entity.enums.StockMovementType;
 import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.OrderItemRepository;
@@ -24,10 +25,13 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final OrderItemRepository orderItemRepository;
+    private final StockMovementService stockMovements;
 
-    public ProductService(ProductRepository productRepository, OrderItemRepository orderItemRepository) {
+    public ProductService(ProductRepository productRepository, OrderItemRepository orderItemRepository,
+            StockMovementService stockMovements) {
         this.productRepository = productRepository;
         this.orderItemRepository = orderItemRepository;
+        this.stockMovements = stockMovements;
     }
 
     public Page<ProductResponse> getAllProducts(boolean active, Boolean needsReview, Boolean outOfStock, String query,
@@ -76,6 +80,7 @@ public class ProductService {
                 .build();
 
         product = productRepository.save(product);
+        stockMovements.record(product, product.getStock(), StockMovementType.INITIAL, null, null);
         log.info("Producto creado - id: {}, nombre: {}, precio venta: {}",
                 product.getId(), product.getName(), product.getSalePrice());
         return ProductResponse.fromEntity(product);
@@ -137,7 +142,7 @@ public class ProductService {
 
     // Suma o resta sobre el valor actual de la base: no pisa ventas de Shopify entradas mientras se editaba
     @Transactional
-    public ProductResponse adjustStock(UUID id, int delta) {
+    public ProductResponse adjustStock(UUID id, int delta, String reason) {
         log.info("Ajustando stock del producto ID: {} en {}", id, delta);
         if (delta == 0) {
             throw new IllegalArgumentException("La cantidad a ajustar no puede ser 0");
@@ -146,6 +151,7 @@ public class ProductService {
             throw new ResourceNotFoundException("Producto no encontrado con ID: " + id);
         }
         Product product = findProductOrThrow(id);
+        stockMovements.record(product, delta, StockMovementType.ADJUSTMENT, null, blankToNull(reason));
         log.info("Stock ajustado - id: {}, nombre: {}, stock: {}", product.getId(), product.getName(), product.getStock());
         return ProductResponse.fromEntity(product);
     }

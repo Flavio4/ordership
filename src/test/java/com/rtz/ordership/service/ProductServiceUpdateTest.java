@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 class ProductServiceUpdateTest {
 
     private ProductRepository productRepository;
+    private final StockMovementService stockMovements = mock(StockMovementService.class);
     private ProductService productService;
     private Product product;
 
@@ -29,7 +30,7 @@ class ProductServiceUpdateTest {
     void setUp() {
         productRepository = mock(ProductRepository.class);
         when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        productService = new ProductService(productRepository, mock(OrderItemRepository.class));
+        productService = new ProductService(productRepository, mock(OrderItemRepository.class), stockMovements);
         product = Product.builder()
                 .id(UUID.randomUUID())
                 .name("Remera")
@@ -75,7 +76,7 @@ class ProductServiceUpdateTest {
     @Test
     void loadingThePurchasePriceFillsTheCostOfItemsSoldWithoutIt() {
         OrderItemRepository orderItemRepository = mock(OrderItemRepository.class);
-        productService = new ProductService(productRepository, orderItemRepository);
+        productService = new ProductService(productRepository, orderItemRepository, stockMovements);
         product.setCurrency(Currency.PYG);
 
         productService.updateProduct(product.getId(), request(null, "Algodón peinado", null));

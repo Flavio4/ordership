@@ -4,7 +4,9 @@ import com.rtz.ordership.dto.request.ProductRequest;
 import com.rtz.ordership.dto.request.ProductUpdateRequest;
 import com.rtz.ordership.dto.request.StockAdjustmentRequest;
 import com.rtz.ordership.dto.response.ProductResponse;
+import com.rtz.ordership.dto.response.StockMovementResponse;
 import com.rtz.ordership.service.ProductService;
+import com.rtz.ordership.service.StockMovementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,9 +27,11 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+    private final StockMovementService stockMovementService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, StockMovementService stockMovementService) {
         this.productService = productService;
+        this.stockMovementService = stockMovementService;
     }
 
     @GetMapping
@@ -69,10 +73,21 @@ public class ProductController {
     @PatchMapping("/{id}/stock")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @Operation(summary = "Ajustar stock", description = "Suma (delta positivo) o resta (delta negativo) unidades al stock actual. "
-            + "Se aplica sobre el valor actual de la base, así no pisa ventas de Shopify recientes")
+            + "Se aplica sobre el valor actual de la base, así no pisa ventas de Shopify recientes. "
+            + "reason (opcional) queda en el historial de stock")
     public ResponseEntity<ProductResponse> adjustStock(@PathVariable UUID id,
             @Valid @RequestBody StockAdjustmentRequest request) {
-        return ResponseEntity.ok(productService.adjustStock(id, request.delta()));
+        return ResponseEntity.ok(productService.adjustStock(id, request.delta(), request.reason()));
+    }
+
+    @GetMapping("/{id}/stock-movements")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @Operation(summary = "Historial de stock", description = "Movimientos del stock del producto, el más reciente primero: "
+            + "alta (INITIAL), ventas (SALE), ediciones (ORDER_EDIT) y cancelaciones (CANCELLATION) de pedidos y ajustes "
+            + "a mano (ADJUSTMENT). quantity es + o -; stockAfter, el stock con que quedó")
+    public ResponseEntity<Page<StockMovementResponse>> getStockMovements(@PathVariable UUID id,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(stockMovementService.list(id, pageable));
     }
 
     @DeleteMapping("/{id}")

@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ import com.rtz.ordership.entity.enums.OrderStatus;
 import com.rtz.ordership.entity.enums.PaymentMethod;
 import com.rtz.ordership.entity.enums.PaymentStatus;
 import com.rtz.ordership.entity.enums.ShippingMethod;
+import com.rtz.ordership.entity.enums.StockMovementType;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CustomerAddressRepository;
 import com.rtz.ordership.repository.CustomerRepository;
@@ -62,6 +64,7 @@ public class OrderService {
     private final CustomerRepository customerRepository;
     private final CustomerAddressRepository addressRepository;
     private final ProductRepository productRepository;
+    private final StockMovementService stockMovements;
     // El servidor corre en UTC: los días del filtro se cuentan con la hora del negocio
     @Value("${app.timezone:America/Asuncion}")
     private ZoneId zone = ZoneId.of("America/Asuncion");
@@ -82,11 +85,13 @@ public class OrderService {
     public OrderService(OrderRepository orderRepository,
             CustomerRepository customerRepository,
             CustomerAddressRepository addressRepository,
-            ProductRepository productRepository) {
+            ProductRepository productRepository,
+            StockMovementService stockMovements) {
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.addressRepository = addressRepository;
         this.productRepository = productRepository;
+        this.stockMovements = stockMovements;
     }
 
     // ── Listar pedidos (paginado + filtros opcionales + customerId) ──────────
@@ -190,6 +195,7 @@ public class OrderService {
         applyTotals(order, request.deliveryFee(), discountLines(request.discounts(), request.discount()));
 
         Order saved = orderRepository.save(order);
+        recordSale(saved);
         log.info("Pedido manual creado - id: {}, cliente: {}, a cobrar: {}, ítems: {}",
                 saved.getId(), customer.getFullName(), saved.getAmountToCollect(), saved.getItems().size());
         return OrderResponse.fromEntity(saved);
@@ -222,6 +228,7 @@ public class OrderService {
         applyTotals(order, request.deliveryFee(), discountLines(request.discounts(), request.discount()));
 
         Order saved = orderRepository.save(order);
+        recordEdit(saved, soldItems.values(), items);
         log.info("Pedido ID: {} - productos editados, a cobrar: {}", id, saved.getAmountToCollect());
         return OrderResponse.fromEntity(saved);
     }
@@ -336,6 +343,7 @@ public class OrderService {
         order.getItems().addAll(orderItems);
 
         Order saved = orderRepository.save(order);
+        recordSale(saved);
         log.info("Pedido Shopify creado - id: {}, pedido Shopify: {} ({}), cliente: {}, a cobrar: {}, "
                         + "total catálogo: {}, ítems: {}",
                 saved.getId(), shopify.orderName(), shopifyOrderId, customer.getFullName(),
@@ -392,6 +400,33 @@ public class OrderService {
                 .build();
     }
 
+    // ── Historial de stock ──────────────────────────────────────────────────
+
+    private void recordSale(Order order) {
+        for (OrderItem item : order.getItems()) {
+            stockMovements.record(item.getProduct(), -item.getQuantity(), StockMovementType.SALE, order, null);
+        }
+    }
+
+    // Al editar, el stock se devuelve entero y se vuelve a descontar: en el historial va solo la diferencia
+    private void recordEdit(Order order, Collection<OrderItem> before, List<OrderItem> after) {
+        Map<UUID, Product> products = new LinkedHashMap<>();
+        Map<UUID, Integer> change = new HashMap<>();
+        for (OrderItem item : before) {
+            products.put(item.getProduct().getId(), item.getProduct());
+            change.merge(item.getProduct().getId(), item.getQuantity(), Integer::sum);
+        }
+        for (OrderItem item : after) {
+            products.putIfAbsent(item.getProduct().getId(), item.getProduct());
+            change.merge(item.getProduct().getId(), -item.getQuantity(), Integer::sum);
+        }
+        products.forEach((id, product) -> {
+            if (change.get(id) != 0) {
+                stockMovements.record(product, change.get(id), StockMovementType.ORDER_EDIT, order, null);
+            }
+        });
+    }
+
     private BigDecimal sumSubtotals(List<OrderItem> items) {
         BigDecimal total = BigDecimal.ZERO;
         for (OrderItem item : items) {
@@ -429,6 +464,7 @@ public class OrderService {
 
         if (newStatus == OrderStatus.CANCELLED) {
             restoreStock(order);
+            recordCancellation(order);
             closeActiveDeliveries(order);
         }
 
@@ -545,6 +581,7 @@ public class OrderService {
         }
 
         restoreStock(order);
+        recordCancellation(order);
         closeActiveDeliveries(order);
 
         order.setStatus(OrderStatus.CANCELLED);
@@ -569,6 +606,12 @@ public class OrderService {
             product.setStock(product.getStock() + item.getQuantity());
             productRepository.save(product);
             log.info("Stock devuelto: {} +{} unidades", product.getName(), item.getQuantity());
+        }
+    }
+
+    private void recordCancellation(Order order) {
+        for (OrderItem item : order.getItems()) {
+            stockMovements.record(item.getProduct(), item.getQuantity(), StockMovementType.CANCELLATION, order, null);
         }
     }
 

@@ -10,6 +10,7 @@ import com.rtz.ordership.entity.Product;
 import com.rtz.ordership.entity.enums.CarrierType;
 import com.rtz.ordership.entity.enums.DeliveryStatus;
 import com.rtz.ordership.entity.enums.OrderStatus;
+import com.rtz.ordership.entity.enums.StockMovementType;
 import com.rtz.ordership.repository.CustomerAddressRepository;
 import com.rtz.ordership.repository.CustomerRepository;
 import com.rtz.ordership.repository.OrderRepository;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.*;
 class OrderServiceCancelTest {
 
     private OrderRepository orderRepository;
+    private StockMovementService stockMovements;
     private OrderService orderService;
 
     @BeforeEach
@@ -37,7 +39,8 @@ class OrderServiceCancelTest {
         orderRepository = mock(OrderRepository.class);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         orderService = new OrderService(orderRepository, mock(CustomerRepository.class),
-                mock(CustomerAddressRepository.class), mock(ProductRepository.class));
+                mock(CustomerAddressRepository.class), mock(ProductRepository.class),
+                stockMovements = mock(StockMovementService.class));
     }
 
     @Test
@@ -49,6 +52,7 @@ class OrderServiceCancelTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(product.getStock()).isEqualTo(1);
+        verify(stockMovements).record(product, 3, StockMovementType.CANCELLATION, order, null);
     }
 
     @Test
@@ -59,6 +63,7 @@ class OrderServiceCancelTest {
         orderService.updateOrderStatus(order.getId(), new OrderStatusUpdateRequest(OrderStatus.CONFIRMED));
 
         assertThat(product.getStock()).isEqualTo(5);
+        verifyNoInteractions(stockMovements);
     }
 
     @Test
@@ -136,6 +141,7 @@ class OrderServiceCancelTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(product.getStock()).isEqualTo(2);
+        verify(stockMovements).record(product, 2, StockMovementType.CANCELLATION, order, null);
     }
 
     private Product product(int stock) {

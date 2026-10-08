@@ -30,7 +30,7 @@ rendición a remitentes): no se mezcla acá.
 2. Crear la tienda actual y asignarle todos los datos existentes. Su `next_order_number` = máximo `order_number` + 1,
    así los números P- no cambian. Su `shopify_shop_domain` y secreto = los que hoy están en las variables de Railway.
 3. `store_id NOT NULL` + FK + índice en: `users`, `customers`, `customer_addresses`, `products`, `orders`,
-   `order_items`, `delivery_assignments`, `carriers`, `zones`, `shopify_webhook_failures`.
+   `order_items`, `delivery_assignments`, `carriers`, `zones`, `shopify_webhook_failures`, `stock_movements`.
    (`refresh_tokens` cuelga del usuario: no lo necesita.)
 4. Unicidades globales → por tienda:
    - `customers (phone)` → `(store_id, phone)`
