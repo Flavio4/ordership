@@ -53,7 +53,8 @@ public class OrderController {
             + "scheduled=true: agenda, solo los que tienen fecha de entrega y todavía no se entregaron ni cancelaron. "
             + "missingDeliveryCost=true: entregados de los últimos 30 días sin el costo del delivery cargado. "
             + "from/to: rango de días (inclusive, cualquiera opcional); en la agenda filtra por fecha de entrega y si no, "
-            + "por fecha de creación en hora de Paraguay")
+            + "por fecha de creación en hora de Paraguay. "
+            + "zoneId: zona de la dirección del pedido; withoutZone=true: sin dirección o con una sin zona")
     public ResponseEntity<Page<OrderResponse>> getAllOrders(
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
@@ -64,9 +65,11 @@ public class OrderController {
             @RequestParam(defaultValue = "false") boolean missingDeliveryCost,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID zoneId,
+            @RequestParam(defaultValue = "false") boolean withoutZone,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(orderService.getAllOrders(status, deliveryDate, customerId, source, query, scheduled,
-                missingDeliveryCost, from, to, pageable));
+                missingDeliveryCost, from, to, zoneId, withoutZone, pageable));
     }
 
     @GetMapping("/agenda-summary")

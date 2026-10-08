@@ -28,9 +28,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     Page<Order> findByCustomerId(UUID customerId, Pageable pageable);
 
+    // LEFT JOIN: los pedidos sin dirección (o con una sin zona) no se pierden; withoutZone filtra justamente esos
     @Query("""
-            SELECT o FROM Order o
+            SELECT o FROM Order o LEFT JOIN o.customerAddress a LEFT JOIN a.zone z
             WHERE (:customerId IS NULL OR o.customer.id = :customerId)
+              AND (:zoneId IS NULL OR z.id = :zoneId)
+              AND (:withoutZone = false OR z.id IS NULL)
               AND (:status IS NULL OR o.status = :status)
               AND (:deliveryDate IS NULL OR o.deliveryDate = :deliveryDate)
               AND o.createdAt >= :createdFrom
@@ -53,6 +56,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                        AND o.createdAt >= :missingDeliveryCostSince))
             """)
     Page<Order> search(@Param("customerId") UUID customerId,
+            @Param("zoneId") UUID zoneId,
+            @Param("withoutZone") boolean withoutZone,
             @Param("status") OrderStatus status,
             @Param("deliveryDate") LocalDate deliveryDate,
             @Param("deliveryFrom") LocalDate deliveryFrom,

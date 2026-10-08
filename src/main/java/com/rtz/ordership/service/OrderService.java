@@ -104,12 +104,16 @@ public class OrderService {
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(OrderStatus status, LocalDate deliveryDate,
             UUID customerId, OrderSource source, String query, boolean scheduled, boolean missingDeliveryCost,
-            LocalDate from, LocalDate to, Pageable pageable) {
+            LocalDate from, LocalDate to, UUID zoneId, boolean withoutZone, Pageable pageable) {
         log.info("Listando pedidos | status: {} | fecha: {} | cliente: {} | source: {} | query: {} | agenda: {} "
-                        + "| sin costo de delivery: {} | desde: {} | hasta: {}",
-                status, deliveryDate, customerId, source, query, scheduled, missingDeliveryCost, from, to);
+                        + "| sin costo de delivery: {} | desde: {} | hasta: {} | zona: {} | sin zona: {}",
+                status, deliveryDate, customerId, source, query, scheduled, missingDeliveryCost, from, to, zoneId,
+                withoutZone);
         if (from != null && to != null && from.isAfter(to)) {
             throw new IllegalArgumentException("La fecha \"desde\" no puede ser posterior a \"hasta\"");
+        }
+        if (zoneId != null && withoutZone) {
+            throw new IllegalArgumentException("Elegí una zona o \"sin zona\", no las dos");
         }
 
         // Sin rango van los extremos: Postgres no puede tipar un parámetro null en "IS NULL"
@@ -118,7 +122,7 @@ public class OrderService {
         Instant createdFrom = !scheduled && from != null ? from.atStartOfDay(zone).toInstant() : Instant.EPOCH;
         Instant createdBefore = !scheduled && to != null ? to.plusDays(1).atStartOfDay(zone).toInstant() : NO_LIMIT;
 
-        Page<Order> page = orderRepository.search(customerId, status, deliveryDate,
+        Page<Order> page = orderRepository.search(customerId, zoneId, withoutZone, status, deliveryDate,
                 deliveryFrom, deliveryTo, createdFrom, createdBefore, source,
                 SearchPatterns.containsLike(query), SearchPatterns.phoneContainsLike(query),
                 SearchPatterns.orderNumber(query), scheduled, missingDeliveryCost,

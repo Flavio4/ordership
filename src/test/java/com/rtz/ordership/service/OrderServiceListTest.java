@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
@@ -27,8 +28,8 @@ class OrderServiceListTest {
     @BeforeEach
     void setUp() {
         orderRepository = mock(OrderRepository.class);
-        when(orderRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                anyBoolean(), anyBoolean(), any(), any())).thenReturn(Page.empty());
+        when(orderRepository.search(any(), any(), anyBoolean(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), anyBoolean(), anyBoolean(), any(), any())).thenReturn(Page.empty());
         orderService = new OrderService(orderRepository, mock(CustomerRepository.class),
                 mock(CustomerAddressRepository.class), mock(ProductRepository.class),
                 mock(StockMovementService.class));
@@ -36,10 +37,11 @@ class OrderServiceListTest {
 
     @Test
     void theRangeFiltersByCreationDayInParaguay() {
-        orderService.getAllOrders(null, null, null, null, null, false, false, SEP_1, SEP_5, PageRequest.of(0, 20));
+        orderService.getAllOrders(null, null, null, null, null, false, false, SEP_1, SEP_5, null, false,
+                PageRequest.of(0, 20));
 
         // Del 1 a las 00:00 al 6 a las 00:00 en Paraguay (UTC-3)
-        verify(orderRepository).search(isNull(), isNull(), isNull(),
+        verify(orderRepository).search(isNull(), isNull(), eq(false), isNull(), isNull(),
                 eq(LocalDate.of(2000, 1, 1)), eq(LocalDate.of(9999, 12, 31)),
                 eq(Instant.parse("2026-09-01T03:00:00Z")), eq(Instant.parse("2026-09-06T03:00:00Z")),
                 isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), any(), any());
@@ -47,17 +49,40 @@ class OrderServiceListTest {
 
     @Test
     void inTheAgendaTheRangeFiltersByDeliveryDate() {
-        orderService.getAllOrders(null, null, null, null, null, true, false, SEP_1, null, PageRequest.of(0, 20));
+        orderService.getAllOrders(null, null, null, null, null, true, false, SEP_1, null, null, false,
+                PageRequest.of(0, 20));
 
-        verify(orderRepository).search(isNull(), isNull(), isNull(), eq(SEP_1), eq(LocalDate.of(9999, 12, 31)),
-                eq(Instant.EPOCH), eq(Instant.parse("9999-12-31T00:00:00Z")),
+        verify(orderRepository).search(isNull(), isNull(), eq(false), isNull(), isNull(), eq(SEP_1),
+                eq(LocalDate.of(9999, 12, 31)), eq(Instant.EPOCH), eq(Instant.parse("9999-12-31T00:00:00Z")),
                 isNull(), isNull(), isNull(), isNull(), eq(true), eq(false), any(), any());
+    }
+
+    @Test
+    void theZoneFilterGoesToTheSearch() {
+        UUID zoneId = UUID.randomUUID();
+
+        orderService.getAllOrders(null, null, null, null, null, true, false, null, null, zoneId, false,
+                PageRequest.of(0, 20));
+        orderService.getAllOrders(null, null, null, null, null, false, false, null, null, null, true,
+                PageRequest.of(0, 20));
+
+        verify(orderRepository).search(isNull(), eq(zoneId), eq(false), isNull(), isNull(), any(), any(), any(),
+                any(), isNull(), isNull(), isNull(), isNull(), eq(true), eq(false), any(), any());
+        verify(orderRepository).search(isNull(), isNull(), eq(true), isNull(), isNull(), any(), any(), any(),
+                any(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), any(), any());
+    }
+
+    @Test
+    void aZoneAndWithoutZoneTogetherAreRejected() {
+        assertThatThrownBy(() -> orderService.getAllOrders(null, null, null, null, null, false, false,
+                null, null, UUID.randomUUID(), true, PageRequest.of(0, 20)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void fromAfterToIsRejected() {
         assertThatThrownBy(() -> orderService.getAllOrders(null, null, null, null, null, false, false,
-                SEP_5, SEP_1, PageRequest.of(0, 20)))
+                SEP_5, SEP_1, null, false, PageRequest.of(0, 20)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
