@@ -1,37 +1,37 @@
 package com.rtz.ordership.entity;
 
+import com.rtz.ordership.entity.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.TenantId;
 
 import java.time.Instant;
 import java.util.UUID;
 
+/** Pertenencia de un usuario a una tienda, con su rol en ella. */
 @Entity
-@Table(name = "zones")
+@Table(name = "store_members")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Zone {
+public class StoreMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @TenantId
-    @Column(name = "store_id", nullable = false, updatable = false)
-    private UUID storeId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String name;
-
-    private String description;
-
-    @Builder.Default
-    @Column(nullable = false)
-    private Boolean active = true;
+    private Role role;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

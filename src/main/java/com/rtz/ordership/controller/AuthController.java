@@ -2,21 +2,17 @@ package com.rtz.ordership.controller;
 
 import com.rtz.ordership.dto.request.LoginRequest;
 import com.rtz.ordership.dto.request.RefreshTokenRequest;
-import com.rtz.ordership.dto.request.RegisterRequest;
 import com.rtz.ordership.dto.response.LoginResponse;
-import com.rtz.ordership.dto.response.UserResponse;
 import com.rtz.ordership.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Autenticación", description = "Endpoints de login y registro")
+@Tag(name = "Autenticación", description = "Login, renovación y cierre de sesión")
 public class AuthController {
 
     private final AuthService authService;
@@ -42,12 +38,5 @@ public class AuthController {
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.logout(request);
         return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/register")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Registrar usuario", description = "Crea un nuevo usuario (solo ADMIN)")
-    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 }

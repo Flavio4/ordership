@@ -2,32 +2,30 @@ package com.rtz.ordership.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.TenantId;
 
 import java.time.Instant;
 import java.util.UUID;
 
+/** Un negocio que usa OrderShip. Sus datos llevan store_id (ver {@link org.hibernate.annotations.TenantId}). */
 @Entity
-@Table(name = "zones")
+@Table(name = "stores")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Zone {
+public class Store {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @TenantId
-    @Column(name = "store_id", nullable = false, updatable = false)
-    private UUID storeId;
-
     @Column(nullable = false)
     private String name;
 
-    private String description;
+    // Dominio en Shopify (ej. "mitienda.myshopify.com"): dice a qué tienda va cada webhook
+    @Column(unique = true)
+    private String shopifyShopDomain;
 
     @Builder.Default
     @Column(nullable = false)

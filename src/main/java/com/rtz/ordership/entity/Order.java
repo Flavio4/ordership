@@ -8,6 +8,7 @@ import com.rtz.ordership.entity.enums.ShippingMethod;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.TenantId;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -28,6 +29,10 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @TenantId
+    @Column(name = "store_id", nullable = false, updatable = false)
+    private UUID storeId;
 
     // Número propio (P-1024): lo asigna la secuencia de la base al insertar
     @Generated

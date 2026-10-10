@@ -3,6 +3,7 @@ package com.rtz.ordership.entity;
 import com.rtz.ordership.entity.enums.CarrierType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.TenantId;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -21,6 +22,10 @@ public class Carrier {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @TenantId
+    @Column(name = "store_id", nullable = false, updatable = false)
+    private UUID storeId;
+
     @Column(nullable = false)
     private String name;
 
@@ -30,9 +35,9 @@ public class Carrier {
 
     private String phone;
 
-    // Opcional: usuario DELIVERY con el que un repartidor propio entra a la app
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", unique = true)
+    // Opcional: usuario DELIVERY con el que un repartidor propio entra a la app (uno por tienda)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @Builder.Default

@@ -2,6 +2,7 @@ package com.rtz.ordership.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.TenantId;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -18,6 +19,10 @@ public class OrderDiscount {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @TenantId
+    @Column(name = "store_id", nullable = false, updatable = false)
+    private UUID storeId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_id", nullable = false)

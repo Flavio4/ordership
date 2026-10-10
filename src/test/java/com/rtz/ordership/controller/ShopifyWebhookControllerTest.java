@@ -1,5 +1,7 @@
 package com.rtz.ordership.controller;
 
+import com.rtz.ordership.repository.StoreMemberRepository;
+import com.rtz.ordership.repository.StoreRepository;
 import com.rtz.ordership.repository.UserRepository;
 import com.rtz.ordership.security.JwtProvider;
 import com.rtz.ordership.service.ShopifyWebhookService;
@@ -46,6 +48,12 @@ class ShopifyWebhookControllerTest {
 
     @MockitoBean
     private UserRepository userRepository;
+
+    @MockitoBean
+    private StoreMemberRepository storeMemberRepository;
+
+    @MockitoBean
+    private StoreRepository storeRepository;
 
     @Test
     void acceptsValidSignature() throws Exception {

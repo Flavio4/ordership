@@ -17,7 +17,7 @@ import lombok.*;
 public class ShopifyReference {
 
     // Id interno de Shopify: evita procesar dos veces el mismo pedido
-    @Column(name = "shopify_order_id", unique = true)
+    @Column(name = "shopify_order_id")
     private String orderId;
 
     // Número que ve la tienda (ej. "#1488")

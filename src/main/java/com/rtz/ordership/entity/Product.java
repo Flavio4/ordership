@@ -4,6 +4,7 @@ import com.rtz.ordership.entity.enums.Currency;
 import com.rtz.ordership.entity.enums.Unit;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.TenantId;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,6 +22,10 @@ public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @TenantId
+    @Column(name = "store_id", nullable = false, updatable = false)
+    private UUID storeId;
 
     @Column(nullable = false)
     private String name;
@@ -49,7 +54,6 @@ public class Product {
     @Column(nullable = false)
     private Integer stock = 0;
 
-    @Column(unique = true)
     private String shopifySku;
 
     // true = creado automáticamente desde un pedido de Shopify; falta completar el precio de compra

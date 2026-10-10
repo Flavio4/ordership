@@ -1,6 +1,5 @@
 package com.rtz.ordership.entity;
 
-import com.rtz.ordership.entity.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,10 +29,6 @@ public class User {
     private String fullName;
 
     private String phone;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
 
     @Builder.Default
     @Column(nullable = false)

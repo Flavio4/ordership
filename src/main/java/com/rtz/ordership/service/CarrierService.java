@@ -3,13 +3,15 @@ package com.rtz.ordership.service;
 import com.rtz.ordership.dto.request.CarrierRequest;
 import com.rtz.ordership.dto.response.CarrierResponse;
 import com.rtz.ordership.entity.Carrier;
+import com.rtz.ordership.entity.StoreMember;
 import com.rtz.ordership.entity.User;
 import com.rtz.ordership.entity.enums.CarrierType;
 import com.rtz.ordership.entity.enums.Role;
 import com.rtz.ordership.exception.DuplicateResourceException;
 import com.rtz.ordership.exception.ResourceNotFoundException;
 import com.rtz.ordership.repository.CarrierRepository;
-import com.rtz.ordership.repository.UserRepository;
+import com.rtz.ordership.repository.StoreMemberRepository;
+import com.rtz.ordership.tenant.StoreContext;
 import com.rtz.ordership.util.PhoneNumbers;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,11 +25,11 @@ import java.util.UUID;
 public class CarrierService {
 
     private final CarrierRepository carrierRepository;
-    private final UserRepository userRepository;
+    private final StoreMemberRepository storeMemberRepository;
 
-    public CarrierService(CarrierRepository carrierRepository, UserRepository userRepository) {
+    public CarrierService(CarrierRepository carrierRepository, StoreMemberRepository storeMemberRepository) {
         this.carrierRepository = carrierRepository;
-        this.userRepository = userRepository;
+        this.storeMemberRepository = storeMemberRepository;
     }
 
     @Transactional(readOnly = true)
@@ -87,9 +89,10 @@ public class CarrierService {
         if (request.type() != CarrierType.OWN) {
             throw new IllegalArgumentException("Solo un repartidor propio puede vincularse a un usuario");
         }
-        User user = userRepository.findById(request.userId())
+        StoreMember member = storeMemberRepository.findByStoreIdAndUserId(StoreContext.requireStoreId(), request.userId())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + request.userId()));
-        if (user.getRole() != Role.DELIVERY) {
+        User user = member.getUser();
+        if (member.getRole() != Role.DELIVERY) {
             throw new IllegalArgumentException("El usuario '" + user.getFullName() + "' no tiene el rol DELIVERY");
         }
         boolean taken = carrierId == null

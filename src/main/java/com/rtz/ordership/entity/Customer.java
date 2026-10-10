@@ -2,6 +2,7 @@ package com.rtz.ordership.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.TenantId;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -21,10 +22,14 @@ public class Customer {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @TenantId
+    @Column(name = "store_id", nullable = false, updatable = false)
+    private UUID storeId;
+
     @Column(nullable = false)
     private String fullName;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String phone;
 
     private String email;

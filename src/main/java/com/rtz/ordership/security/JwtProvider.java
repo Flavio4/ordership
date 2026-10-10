@@ -26,10 +26,10 @@ public class JwtProvider {
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(String email, String role) {
+    // Sin rol ni tienda: el rol depende de la tienda del request y se lee de la base en cada uno
+    public String generateToken(String email) {
         return Jwts.builder()
                 .subject(email)
-                .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(key)

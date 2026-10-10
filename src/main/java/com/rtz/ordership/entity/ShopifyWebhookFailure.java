@@ -2,6 +2,7 @@ package com.rtz.ordership.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.TenantId;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -19,8 +20,11 @@ public class ShopifyWebhookFailure {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @TenantId
+    @Column(name = "store_id", nullable = false, updatable = false)
+    private UUID storeId;
+
     // Puede ser null si el payload ni siquiera se pudo leer
-    @Column(unique = true)
     private String shopifyOrderId;
 
     @Column(nullable = false, columnDefinition = "TEXT")
